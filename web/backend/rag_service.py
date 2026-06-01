@@ -25,6 +25,7 @@ from langchain_core.prompts import PromptTemplate
 from web.backend.chunk_debug import (
     cleanup_failed_append_artifacts,
     cleanup_incomplete_build_artifacts,
+    delete_mineru_output_for_pdf,
     delete_orphan_mineru_output_for_pdf,
     delete_pdf_store_chunks_debug_files,
     delete_store_debug_artifacts,
@@ -167,6 +168,18 @@ def _slugify(name: str) -> str:
 
 def _manifest_path(store_id: str) -> Path:
     return VECTOR_STORES_DIR / store_id / "manifest.json"
+
+
+def _normalize_pdf_path(pdf_path: str) -> str:
+    return str(Path(pdf_path).expanduser().resolve())
+
+
+def _find_pdf_index_in_manifest(manifest: dict, pdf_path: str) -> int:
+    target = _normalize_pdf_path(pdf_path)
+    for index, raw in enumerate(manifest.get("pdf_files", [])):
+        if _normalize_pdf_path(raw) == target:
+            return index
+    raise ValueError(f"该 PDF 不在向量库中: {pdf_path}")
 
 
 def _cleanup_incomplete_build(store_id: str, mineru_output_dirs: List[str]) -> None:
@@ -486,6 +499,54 @@ def iter_append_vector_store(
             cleanup_failed_append_artifacts(
                 store_id, new_paths, new_mineru_output_dirs
             )
+
+
+def remove_pdf_from_vector_store(store_id: str, pdf_path: str) -> dict:
+    """从向量库中删除单个 PDF 及其 FAISS 块、chunk_debug 与 MinerU 输出。"""
+    manifest = _load_manifest(store_id)
+    pdf_files = list(manifest.get("pdf_files", []))
+    if len(pdf_files) <= 1:
+        raise ValueError("向量库至少需保留一个 PDF，请直接删除整个向量库")
+
+    index = _find_pdf_index_in_manifest(manifest, pdf_path)
+    target_source = _normalize_pdf_path(pdf_path)
+
+    save_path = VECTOR_STORES_DIR / store_id
+    knowledge_base = load_knowledge_base(store_id)
+    doc_ids = list(knowledge_base.index_to_docstore_id.values())
+    ids_to_delete: List[str] = []
+    for doc_id in doc_ids:
+        doc = knowledge_base.docstore.search(doc_id)
+        source = doc.metadata.get("source", "")
+        if source and _normalize_pdf_path(source) == target_source:
+            ids_to_delete.append(doc_id)
+
+    if not ids_to_delete:
+        raise ValueError(f"未在向量库中找到该 PDF 的文本块: {Path(pdf_path).name}")
+
+    knowledge_base.delete(ids_to_delete)
+    knowledge_base.save_local(str(save_path))
+    rebuild_bm25_index(knowledge_base, save_path)
+
+    delete_pdf_store_chunks_debug_files(store_id, pdf_path)
+    delete_mineru_output_for_pdf(manifest, pdf_path)
+
+    mineru_dirs = list(manifest.get("mineru_output_dirs", []))
+    del pdf_files[index]
+    if index < len(mineru_dirs):
+        del mineru_dirs[index]
+
+    manifest["pdf_files"] = pdf_files
+    manifest["mineru_output_dirs"] = mineru_dirs
+    manifest["chunk_count"] = max(
+        0, manifest.get("chunk_count", 0) - len(ids_to_delete)
+    )
+    manifest["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    with open(_manifest_path(store_id), "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+    return manifest
 
 
 def delete_vector_store(store_id: str) -> None:

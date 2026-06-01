@@ -2,7 +2,7 @@
 
 > **新 Agent 会话请先读本文件**，再按需打开具体源码。目标：少扫目录、少重复问用户。
 
-**当前版本：v0.4.0**（UI 展示与更新记录见 `frontend/lib/app-versions.ts`，根目录 `README.md` 同步对外版本号）
+**当前版本：v0.5.0**（UI 展示与更新记录见 `frontend/lib/app-versions.ts`，根目录 `README.md` 同步对外版本号）
 
 ## 项目是什么
 
@@ -147,6 +147,7 @@ PDF 文件夹
 
 ## 近期进展（Agent 完成重要改动后请更新本节）
 
+- **v0.5.0**：向量库详情单 PDF 删除（`DELETE /api/vector-stores/{id}/pdfs`，同步 FAISS/BM25/chunk_debug/MinerU）；`MarkdownPreview` 增强问答渲染；历史详情展示 token 用量；UI 字号统一为 `text-xs`
 - **v0.4.0**：追加数据源 SSE 流式进度（`/append/stream`）、`AddDataSourcePanel` 展示 run steps；chunk debug 增强；`text_splitter` 支持超大 HTML 表格切块；删库/清理 orphan 输出
 - 文档页「使用说明」「项目结构」与 Debug 共用左侧 `DocsTreeSection` 边栏（`page.tsx` 移除全屏 early return）
 - 修复文档侧栏切换类别时 Debug 文件项黑底未消失：仅 `activePanel === "debug"` 时传递 `debugFile` 作为选中路径

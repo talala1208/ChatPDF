@@ -172,6 +172,43 @@ def delete_orphan_mineru_output_for_pdf(pdf_path: str, manifest: dict) -> None:
             shutil.rmtree(resolved)
 
 
+def collect_mineru_output_dirs_for_pdf(manifest: dict, pdf_path: str) -> List[str]:
+    """查找某 PDF 在 manifest 或 mineru_output 根目录下对应的 MinerU 输出目录。"""
+    target = str(Path(pdf_path).expanduser().resolve())
+    pdf_files = manifest.get("pdf_files", [])
+    mineru_dirs = manifest.get("mineru_output_dirs", [])
+    found: List[str] = []
+
+    for index, raw in enumerate(pdf_files):
+        if str(Path(raw).expanduser().resolve()) != target:
+            continue
+        if index < len(mineru_dirs) and mineru_dirs[index]:
+            found.append(str(Path(mineru_dirs[index]).expanduser().resolve()))
+        break
+
+    if found:
+        return found
+
+    stem = Path(pdf_path).stem
+    root = mineru_output_root().resolve()
+    if not stem or not root.is_dir():
+        return found
+
+    prefix = f"{stem}_"
+    for item in root.iterdir():
+        if not item.is_dir() or not item.name.startswith(prefix):
+            continue
+        resolved = item.resolve()
+        if _path_under_root(resolved, root):
+            found.append(str(resolved))
+    return found
+
+
+def delete_mineru_output_for_pdf(manifest: dict, pdf_path: str) -> None:
+    """删除某 PDF 关联的 MinerU 输出目录。"""
+    delete_mineru_output_dirs(collect_mineru_output_dirs_for_pdf(manifest, pdf_path))
+
+
 def cleanup_failed_append_artifacts(
     store_id: str,
     pdf_paths: List[str],

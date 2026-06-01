@@ -1,5 +1,5 @@
 /** 当前对外展示的版本号（与 APP_VERSION_HISTORY 首项保持一致） */
-export const APP_VERSION = "v0.4.0";
+export const APP_VERSION = "v0.5.0";
 
 export type AppVersionEntry = {
   version: string;
@@ -9,6 +9,10 @@ export type AppVersionEntry = {
 
 /** 版本历史：新 → 旧 */
 export const APP_VERSION_HISTORY: AppVersionEntry[] = [
+  {
+    version: "v0.5.0",
+    summary: "向量库单 PDF 删除、问答 Markdown 渲染增强与 UI 字号统一",
+  },
   {
     version: "v0.4.0",
     summary: "追加数据源 SSE 流式进度、chunk debug 增强与超大 HTML 表格切块",

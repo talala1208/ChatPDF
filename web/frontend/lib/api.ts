@@ -334,6 +334,20 @@ export async function deleteVectorStore(storeId: string): Promise<void> {
   );
 }
 
+export async function removePdfFromVectorStore(
+  storeId: string,
+  pdfPath: string
+): Promise<VectorStore> {
+  const data = await request<{ ok: boolean; store: VectorStore }>(
+    `/api/vector-stores/${encodeURIComponent(storeId)}/pdfs`,
+    {
+      method: "DELETE",
+      body: JSON.stringify({ pdf_path: pdfPath }),
+    }
+  );
+  return data.store;
+}
+
 export async function fetchChatOptions(): Promise<ChatOptions> {
   return request<ChatOptions>("/api/chat/options");
 }

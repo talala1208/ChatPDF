@@ -25,6 +25,7 @@ from web.backend.rag_service import (
     iter_build_vector_store,
     list_chat_history,
     list_vector_stores,
+    remove_pdf_from_vector_store,
 )
 
 app = FastAPI(title="ChatPDF FAISS API", version="1.0.0")
@@ -57,6 +58,10 @@ class BuildIndexRequest(BaseModel):
 
 class AppendDataSourceRequest(BaseModel):
     pdf_folder_path: str = Field(..., min_length=1, description="本地 PDF 文件夹路径")
+
+
+class RemovePdfRequest(BaseModel):
+    pdf_path: str = Field(..., min_length=1, description="待删除 PDF 的绝对路径")
 
 
 class AskRequest(BaseModel):
@@ -149,6 +154,17 @@ def append_vector_store_endpoint(store_id: str, body: AppendDataSourceRequest):
             store_id=store_id,
             pdf_folder_path=body.pdf_folder_path,
         )
+        return {"ok": True, "store": manifest}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.delete("/api/vector-stores/{store_id}/pdfs")
+def remove_pdf_from_store_endpoint(store_id: str, body: RemovePdfRequest):
+    try:
+        manifest = remove_pdf_from_vector_store(store_id, body.pdf_path)
         return {"ok": True, "store": manifest}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
