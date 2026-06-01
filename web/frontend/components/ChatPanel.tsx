@@ -10,6 +10,7 @@ import type {
 } from "@/lib/api";
 import { askQuestionStream, fetchChatOptions, formatTokenUsage } from "@/lib/api";
 import CopyButton from "@/components/CopyButton";
+import MarkdownPreview from "@/components/MarkdownPreview";
 import SourceList from "@/components/SourceList";
 
 interface ChatPanelProps {
@@ -413,7 +414,7 @@ export default function ChatPanel({ store, onAsked }: ChatPanelProps) {
             {runSteps.map((step, index) => (
               <li
                 key={`${step.label}-${index}`}
-                className="flex items-start justify-between gap-4 text-sm text-[#2f3437]"
+                className="flex items-start justify-between gap-4 text-xs text-[#2f3437]"
               >
                 <span>
                   {index + 1}. {step.label}
@@ -432,11 +433,11 @@ export default function ChatPanel({ store, onAsked }: ChatPanelProps) {
               </li>
             ))}
             {loading && (
-              <li className="text-sm text-[#787774]">执行中...</li>
+              <li className="text-xs text-[#787774]">执行中...</li>
             )}
           </ul>
           {totalDurationMs !== null && !loading && (
-            <div className="mt-3 space-y-1 text-sm font-medium text-[#111111]">
+            <div className="mt-3 space-y-1 text-xs font-medium text-[#111111]">
               <p>总运行时间：{formatDuration(totalDurationMs)}</p>
               {totalTokenUsage ? (
                 <p className="font-normal text-[#787774]">
@@ -466,9 +467,10 @@ export default function ChatPanel({ store, onAsked }: ChatPanelProps) {
               </h3>
               <CopyButton text={result.answer} />
             </div>
-            <p className="mt-2 whitespace-pre-wrap text-base leading-relaxed">
-              {result.answer}
-            </p>
+            <MarkdownPreview
+              content={result.answer}
+              className="mt-2 text-base"
+            />
           </section>
           {result.sources.length > 0 && (
             <section className="rounded-lg border border-[#eaeaea] bg-[#f7f6f3] p-6">

@@ -157,7 +157,7 @@ export default function AddDataSourcePanel({
             {runSteps.map((step, index) => (
               <li
                 key={`${step.label}-${index}`}
-                className="flex items-start justify-between gap-4 text-sm text-[#2f3437]"
+                className="flex items-start justify-between gap-4 text-xs text-[#2f3437]"
               >
                 <span className="min-w-0 break-all">
                   {index + 1}. {step.label}
@@ -171,11 +171,11 @@ export default function AddDataSourcePanel({
               </li>
             ))}
             {loading && (
-              <li className="text-sm text-[#787774]">执行中...</li>
+              <li className="text-xs text-[#787774]">执行中...</li>
             )}
           </ul>
           {totalDurationMs !== null && !loading && (
-            <p className="mt-3 text-sm font-medium text-[#111111]">
+            <p className="mt-3 text-xs font-medium text-[#111111]">
               总运行时间：{formatDuration(totalDurationMs)}
             </p>
           )}

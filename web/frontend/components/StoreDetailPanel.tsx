@@ -37,7 +37,24 @@ export default function StoreDetailPanel({
       </h2>
       <p className="mt-2 font-mono text-xs text-[#787774]">{store.id}</p>
 
-      <div className="relative mt-8 w-full min-w-0 rounded-lg border border-[#eaeaea] bg-white p-6 text-sm">
+      <div className="mt-6 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={onStartChat}
+          className="rounded-md bg-[#111111] px-6 py-3 text-sm font-medium text-white"
+        >
+          使用该库问答
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowAddSource((v) => !v)}
+          className="rounded-md border border-[#111111] bg-white px-6 py-3 text-sm font-medium text-[#111111]"
+        >
+          {showAddSource ? "收起添加" : "添加数据源"}
+        </button>
+      </div>
+
+      <div className="relative mt-6 w-full min-w-0 rounded-lg border border-[#eaeaea] bg-white p-6 text-sm">
         <button
           type="button"
           onClick={() => selectDebugFile(debugFilePath)}
@@ -100,23 +117,6 @@ export default function StoreDetailPanel({
           </div>
         )}
         </dl>
-      </div>
-
-      <div className="mt-8 flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={onStartChat}
-          className="rounded-md bg-[#111111] px-6 py-3 text-sm font-medium text-white"
-        >
-          使用该库问答
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowAddSource((v) => !v)}
-          className="rounded-md border border-[#111111] bg-white px-6 py-3 text-sm font-medium text-[#111111]"
-        >
-          {showAddSource ? "收起添加" : "添加数据源"}
-        </button>
       </div>
 
       {showAddSource && (

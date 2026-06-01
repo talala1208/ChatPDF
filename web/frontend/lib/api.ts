@@ -5,6 +5,13 @@ const API_BASE =
 export type BuildRoute = "per_page" | "full_text";
 export type PromptPreset = "default" | "strict" | "concise" | "detailed";
 
+export const PROMPT_PRESET_LABELS: Record<PromptPreset, string> = {
+  default: "默认",
+  strict: "严格依据文档",
+  concise: "简洁回答",
+  detailed: "分步详述",
+};
+
 export interface ChatOptions {
   llm_models: string[];
   default_llm_model: string;
@@ -74,6 +81,43 @@ export interface RunStep {
 
 export function formatTokenUsage(usage: TokenUsage): string {
   return `输入 ${usage.input_tokens} · 输出 ${usage.output_tokens} · 合计 ${usage.total_tokens}`;
+}
+
+export function getPromptPresetLabel(preset?: PromptPreset): string {
+  if (!preset) {
+    return PROMPT_PRESET_LABELS.default;
+  }
+  return PROMPT_PRESET_LABELS[preset] ?? preset;
+}
+
+export interface ChatSettingItem {
+  label: string;
+  value: string;
+}
+
+/** 历史问答中展示本次提问所选参数 */
+export function getChatSettingItems(record: ChatRecord): ChatSettingItem[] {
+  const items: ChatSettingItem[] = [{ label: "Top-K", value: String(record.k) }];
+
+  if (record.model) {
+    items.push({ label: "模型", value: record.model });
+  }
+  if (record.temperature != null) {
+    items.push({ label: "Temperature", value: String(record.temperature) });
+  }
+  items.push({
+    label: "Prompt 风格",
+    value: getPromptPresetLabel(record.prompt_preset),
+  });
+  items.push({
+    label: "LLM 重排",
+    value: record.llm_rerank ? "开启" : "关闭",
+  });
+  if (record.llm_rerank && record.rerank_model) {
+    items.push({ label: "Rerank 模型", value: record.rerank_model });
+  }
+
+  return items;
 }
 
 export type BuildStreamEvent =
