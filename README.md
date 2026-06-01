@@ -27,11 +27,24 @@
 
 **新建向量库**
 
-![新建向量库](./functional-interface01.png)
+![新建向量库](./新建向量库.png)
 
-**Debug 切块预览**
+**向量库详情**
+支持知识库问答及数据源的增删功能。
 
-![Debug 面板](./functional-interface02.png)
+![向量库详情](./向量库详情页.png)
+
+**RAG 问答**
+
+![RAG问答](./RAG问答.png)
+
+**增量更新数据库**
+
+![添加数据源](./添加数据源.png)
+
+**Debug 预览**
+
+![Debug 面板](./debug.png)
 
 ## 架构
 

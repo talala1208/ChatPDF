@@ -6,7 +6,7 @@ import ApiLinkTitle from "@/components/ApiLinkTitle";
 import { useAppGuide } from "@/lib/app-guide-context";
 import { API_LINKS } from "@/lib/docs-nav";
 
-const AUTHOR_GITHUB_URL = "https://github.com/talala1208";
+const PROJECT_GITHUB_URL = "https://github.com/talala1208/ChatPDF";
 
 function DevIndicatorIcon() {
   return (
@@ -179,7 +179,7 @@ export default function ApiLinksMenu() {
           <div className="my-1 border-t border-[#eaeaea]" />
 
           <a
-            href={AUTHOR_GITHUB_URL}
+            href={PROJECT_GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-between px-4 py-2.5 text-sm text-[#111111] transition-colors hover:bg-[#f8f9fa]"
