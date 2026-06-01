@@ -1,5 +1,7 @@
 # ChatPDF
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 基于「文档」的智能检索平台 —— 上传 PDF 建库，混合检索 + 流式问答。
 
 ![首页预览](./homepage.png)
@@ -90,3 +92,7 @@ ChatPDF/
 - 当前版本：**v0.3.0**
 - 暂不支持多模态及 PDF 以外格式
 - 更详细的开发文档见 [`web/README.md`](./web/README.md)
+
+## License
+
+本项目采用 [MIT License](./LICENSE) 开源。
