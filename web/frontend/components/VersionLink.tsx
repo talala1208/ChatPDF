@@ -6,7 +6,7 @@ import { APP_VERSION, APP_VERSION_HISTORY } from "@/lib/app-versions";
 export default function VersionLink() {
   return (
     <span className="group relative">
-      <span className="cursor-default text-xs text-[#787774] transition-colors group-hover:text-[#2f3437]">
+      <span className="inline-flex cursor-default rounded-md border border-[#eaeaea] bg-[#f0efec] px-3 py-1 text-xs text-[#3c4043] transition-colors group-hover:border-[#111111] group-hover:bg-white group-hover:text-[#111111]">
         {APP_VERSION}
       </span>
       <span

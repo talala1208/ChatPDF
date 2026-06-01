@@ -2,6 +2,8 @@
 
 > **新 Agent 会话请先读本文件**，再按需打开具体源码。目标：少扫目录、少重复问用户。
 
+**当前版本：v0.4.0**（UI 展示与更新记录见 `frontend/lib/app-versions.ts`，根目录 `README.md` 同步对外版本号）
+
 ## 项目是什么
 
 基于 **MinerU 解析 PDF → DashScope Embedding → FAISS 向量库 + BM25 混合检索 → 通义/DeepSeek LLM 问答** 的 ChatPDF 工作台。用户通过 Web UI 建库、追加 PDF、流式问答、查看切块调试文件。
@@ -89,7 +91,8 @@ PDF 文件夹
 | GET | `/api/health` | 健康检查 |
 | GET | `/api/vector-stores` | 向量库列表 |
 | POST | `/api/vector-stores/build` | 建库（SSE 流式进度） |
-| POST | `/api/vector-stores/{id}/append` | 追加 PDF |
+| POST | `/api/vector-stores/{id}/append/stream` | 追加 PDF（SSE 流式进度） |
+| POST | `/api/vector-stores/{id}/append` | 追加 PDF（同步） |
 | DELETE | `/api/vector-stores/{id}` | 删库 |
 | GET | `/api/chat/options` | LLM 模型、Prompt 预设 |
 | POST | `/api/chat/stream` | 流式问答 |
@@ -113,6 +116,7 @@ PDF 文件夹
 | 组件 | 职责 |
 |------|------|
 | `BuildIndexPanel` | 新建向量库（SSE 建库进度） |
+| `AddDataSourcePanel` | 追加 PDF 数据源（SSE 流式进度） |
 | `ChatPanel` | 问答（模型、temperature、prompt preset、LLM rerank） |
 | `DocsTreeSection` | 文档侧栏树；Debug 文件高亮 |
 | `DebugPanel` | 预览 chunk_debug Markdown |
@@ -143,6 +147,7 @@ PDF 文件夹
 
 ## 近期进展（Agent 完成重要改动后请更新本节）
 
+- **v0.4.0**：追加数据源 SSE 流式进度（`/append/stream`）、`AddDataSourcePanel` 展示 run steps；chunk debug 增强；`text_splitter` 支持超大 HTML 表格切块；删库/清理 orphan 输出
 - 文档页「使用说明」「项目结构」与 Debug 共用左侧 `DocsTreeSection` 边栏（`page.tsx` 移除全屏 early return）
 - 修复文档侧栏切换类别时 Debug 文件项黑底未消失：仅 `activePanel === "debug"` 时传递 `debugFile` 作为选中路径
 
