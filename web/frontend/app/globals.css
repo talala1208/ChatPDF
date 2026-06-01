@@ -1,0 +1,259 @@
+@import "tailwindcss";
+
+:root {
+  --canvas: #f7f6f3;
+  --surface: #ffffff;
+  --border: #eaeaea;
+  --text: #2f3437;
+  --muted: #787774;
+  --accent-blue-bg: #e1f3fe;
+  --accent-blue-text: #1f6c9f;
+  --accent-green-bg: #edf3ec;
+  --accent-green-text: #346538;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--canvas);
+  color: var(--text);
+  font-family: "SF Pro Display", "Helvetica Neue", "PingFang SC", sans-serif;
+  line-height: 1.6;
+}
+
+button {
+  font-family: inherit;
+}
+
+input,
+textarea {
+  font-family: inherit;
+}
+
+/* 首页标题：HomePod 风格流动炫彩渐变 */
+@keyframes home-title-iridescent {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.home-title-iridescent {
+  display: inline-block;
+  font-size: clamp(3.75rem, 11vw, 5.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  filter: drop-shadow(0 0 28px rgba(255, 255, 255, 0.65))
+    drop-shadow(0 0 56px rgba(255, 255, 255, 0.4))
+    drop-shadow(0 0 88px rgba(199, 125, 255, 0.28))
+    drop-shadow(0 0 120px rgba(72, 202, 228, 0.2));
+  background-image: linear-gradient(
+    115deg,
+    #e85d4c 0%,
+    #f4a261 12%,
+    #e9c46a 22%,
+    #2a9d8f 38%,
+    #48cae4 52%,
+    #7b6fd6 68%,
+    #c77dff 82%,
+    #f72585 92%,
+    #e85d4c 100%
+  );
+  background-size: 280% 280%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: home-title-iridescent 10s ease-in-out infinite;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5),
+    0 0 40px rgba(255, 255, 255, 0.28);
+}
+
+/* 左下角菜单触发器：重叠 TL 标描边动效 */
+@keyframes app-menu-mark-draw0 {
+  0%,
+  25% {
+    stroke-dashoffset: -20;
+  }
+  25%,
+  50% {
+    stroke-dashoffset: 0;
+  }
+  50%,
+  75% {
+    stroke-dashoffset: 0;
+  }
+  75%,
+  100% {
+    stroke-dashoffset: 20;
+  }
+}
+
+@keyframes app-menu-mark-draw1 {
+  0%,
+  20% {
+    stroke-dashoffset: -12.5;
+  }
+  20%,
+  50% {
+    stroke-dashoffset: 0;
+  }
+  50%,
+  75% {
+    stroke-dashoffset: 0;
+  }
+  75%,
+  100% {
+    stroke-dashoffset: 12.5;
+  }
+}
+
+.app-menu-root {
+  z-index: 99999;
+  pointer-events: none;
+}
+
+.app-menu-badge {
+  position: relative;
+  z-index: 2;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: none;
+  padding: 0;
+  line-height: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.82);
+  box-shadow:
+    0 0 0 1px #171717,
+    inset 0 0 0 1px hsla(0, 0%, 100%, 0.14),
+    0 16px 32px -8px rgba(0, 0, 0, 0.24);
+  transition: box-shadow 200ms cubic-bezier(0.23, 0.88, 0.26, 0.92);
+}
+
+.app-menu-badge:hover {
+  box-shadow:
+    0 0 0 1px #171717,
+    inset 0 0 0 1px hsla(0, 0%, 100%, 0.2),
+    0 18px 36px -6px rgba(0, 0, 0, 0.28);
+}
+
+.app-menu-panel {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.app-menu-mark-path0 {
+  animation: app-menu-mark-draw0 1.5s ease-in-out infinite;
+}
+
+.app-menu-mark-path1 {
+  animation: app-menu-mark-draw1 1.5s ease-out infinite;
+  animation-delay: 0.3s;
+}
+
+.app-menu-mark {
+  display: block;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/* Debug MD 预览样式 */
+.markdown-preview h1 {
+  margin: 1.25rem 0 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111111;
+}
+
+.markdown-preview h2 {
+  margin: 1rem 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #111111;
+}
+
+.markdown-preview h3 {
+  margin: 0.75rem 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111111;
+}
+
+.markdown-preview p,
+.markdown-preview li {
+  margin: 0.35rem 0;
+}
+
+.markdown-preview ul {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.markdown-preview hr {
+  margin: 1rem 0;
+  border: none;
+  border-top: 1px solid #eaeaea;
+}
+
+.markdown-preview table {
+  width: 100%;
+  margin: 0.75rem 0;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+  border: 1px solid #eaeaea;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+.markdown-preview th {
+  background: #f8f9fa;
+  font-weight: 500;
+}
+
+.markdown-preview pre {
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  border: 1px solid #eaeaea;
+  background: #f8f9fa;
+  padding: 0.75rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.markdown-preview code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+}
+
+.markdown-preview :not(pre) > code {
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  background: #f0efec;
+}

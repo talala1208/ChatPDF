@@ -1,0 +1,35 @@
+.env
+.env.local
+.DS_Store
+
+# Python 编译缓存
+__pycache__/
+*.py[cod]
+
+web/.venv/
+web/.venv-mineru/
+web/frontend/node_modules/
+web/frontend/.next/
+web/frontend/.env.local
+
+# 运行时数据：忽略 web/data 下全部内容，仅保留目录占位与说明文档
+web/data/*
+!web/data/.gitkeep
+
+!web/data/vector_stores/
+web/data/vector_stores/**
+!web/data/vector_stores/.gitkeep
+
+!web/data/mineru_output/
+web/data/mineru_output/**
+!web/data/mineru_output/.gitkeep
+
+!web/data/chunk_debug/
+web/data/chunk_debug/**
+!web/data/chunk_debug/.gitkeep
+!web/data/chunk_debug/00-说明/
+!web/data/chunk_debug/00-说明/README.md
+
+doc1/
+doc2/
+doc3/
