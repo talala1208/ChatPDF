@@ -220,6 +220,69 @@ export async function appendVectorStore(
   return data.store;
 }
 
+export async function appendVectorStoreStream(
+  storeId: string,
+  payload: { pdf_folder_path: string },
+  onEvent: (event: BuildStreamEvent) => void
+): Promise<VectorStore> {
+  const res = await fetch(
+    `${API_BASE}/api/vector-stores/${encodeURIComponent(storeId)}/append/stream`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const detail =
+      typeof data.detail === "string"
+        ? data.detail
+        : JSON.stringify(data.detail ?? data);
+    throw new Error(detail || `请求失败 (${res.status})`);
+  }
+
+  if (!res.body) {
+    throw new Error("流式响应不可用");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let store: VectorStore | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) {
+        continue;
+      }
+      const event = JSON.parse(line.slice(6)) as BuildStreamEvent;
+      onEvent(event);
+      if (event.type === "done") {
+        store = event.store;
+      }
+      if (event.type === "error") {
+        throw new Error(event.detail);
+      }
+    }
+  }
+
+  if (!store) {
+    throw new Error("增量入库未完成");
+  }
+  return store;
+}
+
 export async function deleteVectorStore(storeId: string): Promise<void> {
   await request<{ ok: boolean }>(
     `/api/vector-stores/${encodeURIComponent(storeId)}`,

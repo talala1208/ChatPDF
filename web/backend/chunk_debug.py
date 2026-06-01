@@ -7,7 +7,6 @@ from __future__ import annotations
 import os
 import re
 import shutil
-import uuid
 from pathlib import Path
 from typing import List
 
@@ -127,6 +126,63 @@ def _pdf_debug_md_basename(pdf_path: str) -> str:
     return safe[:80]
 
 
+def _pdf_store_debug_md_paths(store_id: str, pdf_path: str) -> List[Path]:
+    """列出 chunk_debug/{store_id}/ 下某 PDF 对应的 debug Markdown 路径。"""
+    out_dir = chunk_debug_dir() / store_id
+    if not out_dir.is_dir():
+        return []
+
+    base = _pdf_debug_md_basename(pdf_path)
+    paths: List[Path] = []
+    primary = out_dir / f"{base}.md"
+    if primary.is_file():
+        paths.append(primary)
+    for item in out_dir.glob(f"{base}_*.md"):
+        if item.is_file():
+            paths.append(item)
+    return paths
+
+
+def delete_pdf_store_chunks_debug_files(store_id: str, pdf_path: str) -> None:
+    """删除某 PDF 在 chunk_debug/{store_id}/ 下的 debug 文件（含历史后缀副本）。"""
+    for path in _pdf_store_debug_md_paths(store_id, pdf_path):
+        path.unlink(missing_ok=True)
+
+
+def delete_orphan_mineru_output_for_pdf(pdf_path: str, manifest: dict) -> None:
+    """删除 mineru_output 下该 PDF 未写入 manifest 的孤立目录（如上次入库失败残留）。"""
+    root = mineru_output_root().resolve()
+    stem = Path(pdf_path).stem
+    if not stem or not root.is_dir():
+        return
+
+    recorded = {
+        Path(raw).expanduser().resolve()
+        for raw in manifest.get("mineru_output_dirs", [])
+        if raw
+    }
+    prefix = f"{stem}_"
+    for item in root.iterdir():
+        if not item.is_dir() or not item.name.startswith(prefix):
+            continue
+        resolved = item.resolve()
+        if resolved in recorded:
+            continue
+        if _path_under_root(resolved, root):
+            shutil.rmtree(resolved)
+
+
+def cleanup_failed_append_artifacts(
+    store_id: str,
+    pdf_paths: List[str],
+    mineru_output_dirs: List[str],
+) -> None:
+    """增量入库失败时清理本次 MinerU 输出与 chunk_debug 文件。"""
+    delete_mineru_output_dirs(mineru_output_dirs)
+    for pdf_path in pdf_paths:
+        delete_pdf_store_chunks_debug_files(store_id, pdf_path)
+
+
 def save_pdf_store_chunks_debug_md(
     store_id: str,
     pdf_path: str,
@@ -139,10 +195,9 @@ def save_pdf_store_chunks_debug_md(
     """建库或增量追加时，为单个 PDF 在 chunk_debug/{store_id}/ 下保存一份 Markdown。"""
     out_dir = chunk_debug_dir() / store_id
     out_dir.mkdir(parents=True, exist_ok=True)
+    delete_pdf_store_chunks_debug_files(store_id, pdf_path)
     base = _pdf_debug_md_basename(pdf_path)
     out_path = out_dir / f"{base}.md"
-    if out_path.exists():
-        out_path = out_dir / f"{base}_{uuid.uuid4().hex[:6]}.md"
     body = _format_chunks_markdown(
         title=f"Chunks · {Path(pdf_path).name}",
         pdf_path=pdf_path,

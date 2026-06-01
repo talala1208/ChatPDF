@@ -23,7 +23,10 @@ from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
 
 from web.backend.chunk_debug import (
+    cleanup_failed_append_artifacts,
     cleanup_incomplete_build_artifacts,
+    delete_orphan_mineru_output_for_pdf,
+    delete_pdf_store_chunks_debug_files,
     delete_store_debug_artifacts,
     save_pdf_chunks_debug_md,
     save_pdf_store_chunks_debug_md,
@@ -348,67 +351,141 @@ def _load_manifest(store_id: str) -> dict:
 
 def append_vector_store(store_id: str, pdf_folder_path: str) -> dict:
     """向已有向量库增量添加文件夹内尚未入库的 PDF。"""
-    _require_api_key()
-    manifest = _load_manifest(store_id)
-    route: BuildRoute = manifest["route"]
-    chunk_size = manifest.get("chunk_size", DEFAULT_CHUNK_SIZE)
-    chunk_overlap = manifest.get("chunk_overlap", DEFAULT_CHUNK_OVERLAP)
-    validate_chunk_params(chunk_size, chunk_overlap)
-
-    pdf_paths = collect_pdf_paths(pdf_folder_path)
-    existing = set(manifest.get("pdf_files", []))
-    new_paths = [p for p in pdf_paths if p not in existing]
-    if not new_paths:
-        raise ValueError("该文件夹中未发现尚未入库的 PDF 文件")
-
-    new_documents: List[Document] = []
-    new_mineru_output_dirs: List[str] = []
-    for pdf_path in new_paths:
-        docs, mineru_output_dir = build_documents_for_pdf(
-            pdf_path,
-            route,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-        )
-        save_pdf_chunks_debug_md(
-            mineru_output_dir,
-            pdf_path,
-            docs,
-            route=route,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-        )
-        save_pdf_store_chunks_debug_md(
-            store_id,
-            pdf_path,
-            docs,
-            route=route,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-        )
-        new_mineru_output_dirs.append(str(Path(mineru_output_dir).resolve()))
-        new_documents.extend(docs)
-
-    if not new_documents:
-        raise ValueError("未能从新增 PDF 生成任何文本块")
-
-    save_path = VECTOR_STORES_DIR / store_id
-    knowledge_base = load_knowledge_base(store_id)
-    knowledge_base.add_documents(new_documents)
-    knowledge_base.save_local(str(save_path))
-    rebuild_bm25_index(knowledge_base, save_path)
-
-    manifest["pdf_files"] = list(manifest.get("pdf_files", [])) + new_paths
-    manifest["mineru_output_dirs"] = list(
-        manifest.get("mineru_output_dirs", [])
-    ) + new_mineru_output_dirs
-    manifest["chunk_count"] = manifest.get("chunk_count", 0) + len(new_documents)
-    manifest["updated_at"] = datetime.now(timezone.utc).isoformat()
-
-    with open(_manifest_path(store_id), "w", encoding="utf-8") as f:
-        json.dump(manifest, f, ensure_ascii=False, indent=2)
-
+    manifest = None
+    for event in iter_append_vector_store(store_id, pdf_folder_path):
+        if event["type"] == "done":
+            manifest = event["store"]
+        elif event["type"] == "error":
+            raise ValueError(event["detail"])
+    if manifest is None:
+        raise ValueError("增量入库未完成")
     return manifest
+
+
+def iter_append_vector_store(
+    store_id: str, pdf_folder_path: str
+) -> Iterator[dict]:
+    """逐步执行增量入库并 yield 运行记录（供 SSE 流式接口使用）。"""
+    total_start = time.perf_counter()
+    step_start = total_start
+
+    def emit_step(label: str, detail: str = "") -> dict:
+        nonlocal step_start
+        now = time.perf_counter()
+        event = {
+            "type": "step",
+            "label": label,
+            "detail": detail,
+            "duration_ms": round((now - step_start) * 1000, 1),
+        }
+        step_start = now
+        return event
+
+    append_succeeded = False
+    new_paths: List[str] = []
+    new_mineru_output_dirs: List[str] = []
+
+    try:
+        _require_api_key()
+        yield emit_step("加载向量库配置")
+        manifest = _load_manifest(store_id)
+        route: BuildRoute = manifest["route"]
+        chunk_size = manifest.get("chunk_size", DEFAULT_CHUNK_SIZE)
+        chunk_overlap = manifest.get("chunk_overlap", DEFAULT_CHUNK_OVERLAP)
+        validate_chunk_params(chunk_size, chunk_overlap)
+
+        yield emit_step("扫描 PDF 文件夹")
+        pdf_paths = collect_pdf_paths(pdf_folder_path)
+        existing = set(manifest.get("pdf_files", []))
+        new_paths = [p for p in pdf_paths if p not in existing]
+        yield emit_step(
+            "发现待入库 PDF",
+            f"{len(new_paths)} 个新文件（共扫描 {len(pdf_paths)} 个）",
+        )
+        if not new_paths:
+            raise ValueError("该文件夹中未发现尚未入库的 PDF 文件")
+
+        new_documents: List[Document] = []
+        for index, pdf_path in enumerate(new_paths, start=1):
+            delete_orphan_mineru_output_for_pdf(pdf_path, manifest)
+            delete_pdf_store_chunks_debug_files(store_id, pdf_path)
+
+            pdf_name = Path(pdf_path).name
+            yield emit_step(
+                "MinerU 解析与切块",
+                f"{index}/{len(new_paths)} · {pdf_name}",
+            )
+            docs, mineru_output_dir = build_documents_for_pdf(
+                pdf_path,
+                route,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
+            yield emit_step("MinerU 结果已保存", mineru_output_dir)
+            chunks_md_path = save_pdf_chunks_debug_md(
+                mineru_output_dir,
+                pdf_path,
+                docs,
+                route=route,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
+            yield emit_step(
+                "建库 Chunks 已保存",
+                f"{chunks_md_path}（{len(docs)} 块）",
+            )
+            store_debug_path = save_pdf_store_chunks_debug_md(
+                store_id,
+                pdf_path,
+                docs,
+                route=route,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
+            yield emit_step(
+                "向量库 Debug 已保存",
+                f"{store_debug_path.name}（{len(docs)} 块）",
+            )
+            new_mineru_output_dirs.append(str(Path(mineru_output_dir).resolve()))
+            new_documents.extend(docs)
+
+        if not new_documents:
+            raise ValueError("未能从新增 PDF 生成任何文本块")
+
+        yield emit_step("向量化并写入 FAISS", f"{len(new_documents)} 块")
+        save_path = VECTOR_STORES_DIR / store_id
+        knowledge_base = load_knowledge_base(store_id)
+        knowledge_base.add_documents(new_documents)
+        knowledge_base.save_local(str(save_path))
+        rebuild_bm25_index(knowledge_base, save_path)
+
+        yield emit_step("更新向量库配置")
+        manifest["pdf_files"] = list(manifest.get("pdf_files", [])) + new_paths
+        manifest["mineru_output_dirs"] = list(
+            manifest.get("mineru_output_dirs", [])
+        ) + new_mineru_output_dirs
+        manifest["chunk_count"] = manifest.get("chunk_count", 0) + len(
+            new_documents
+        )
+        manifest["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        with open(_manifest_path(store_id), "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+        append_succeeded = True
+        total_duration_ms = round((time.perf_counter() - total_start) * 1000, 1)
+        yield {
+            "type": "done",
+            "store": manifest,
+            "total_duration_ms": total_duration_ms,
+        }
+    except (ValueError, Exception) as e:
+        yield {"type": "error", "detail": str(e)}
+    finally:
+        if not append_succeeded and new_paths:
+            cleanup_failed_append_artifacts(
+                store_id, new_paths, new_mineru_output_dirs
+            )
 
 
 def delete_vector_store(store_id: str) -> None:

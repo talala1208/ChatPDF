@@ -1,5 +1,5 @@
 """
-PDF 文本切块：表格整表保留，表题/脚注与相邻 <table> 合并。
+PDF 文本切块：表格整表保留；超长表格按行拆分并重复表头（适配 Embedding 长度上限）。
 """
 
 from __future__ import annotations
@@ -18,10 +18,15 @@ BuildRoute = Literal["per_page", "full_text"]
 DEFAULT_CHUNK_SIZE = 300
 DEFAULT_CHUNK_OVERLAP = 50
 
-# HTML 表格作为原子单元，切块时不切分 <table>...</table>
+# DashScope text-embedding-v1 单条输入字符上限
+MAX_EMBEDDING_CHARS = 2048
+
+# HTML 表格作为原子单元，切块时不切分 <table>...</table>（超长时另按行拆分）
 _TABLE_HTML_PATTERN = re.compile(
     r"<table\b[^>]*>.*?</table>", re.IGNORECASE | re.DOTALL
 )
+_TR_PATTERN = re.compile(r"<tr\b[^>]*>.*?</tr>", re.IGNORECASE | re.DOTALL)
+_THEAD_PATTERN = re.compile(r"<thead\b[^>]*>.*?</thead>", re.IGNORECASE | re.DOTALL)
 # 表格前后短文本（表题、来源、脚注）与表格合并为一个 chunk
 _TABLE_PREFIX_MAX_LEN = 150
 _TABLE_SUFFIX_MAX_LEN = 120
@@ -179,6 +184,105 @@ def _merge_table_adjacent_segments(
     return merged
 
 
+def _extract_table_header_and_rows(table_html: str) -> Tuple[str, str, List[str], str] | None:
+    """解析 table HTML 为 (open_tag, header_html, data_rows, close_tag)。"""
+    match = re.match(
+        r"(<table\b[^>]*>)(.*?)(</table>)",
+        table_html.strip(),
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return None
+
+    open_tag, inner, close_tag = match.groups()
+    thead_match = _THEAD_PATTERN.search(inner)
+    if thead_match:
+        header_html = thead_match.group(0)
+        body_inner = inner[thead_match.end() :]
+        tbody_open = re.match(r"<tbody\b[^>]*>", body_inner, re.IGNORECASE)
+        if tbody_open:
+            body_inner = body_inner[tbody_open.end() :]
+            if body_inner.lower().endswith("</tbody>"):
+                body_inner = body_inner[: -len("</tbody>")]
+        rows = _TR_PATTERN.findall(body_inner)
+        return open_tag, header_html, rows, close_tag
+
+    rows = _TR_PATTERN.findall(inner)
+    if len(rows) < 2:
+        return None
+    return open_tag, rows[0], rows[1:], close_tag
+
+
+def _split_table_html_by_rows(table_html: str, max_chars: int) -> List[str]:
+    """将超长 table HTML 按数据行拆成多段，每段重复表头。"""
+    if len(table_html) <= max_chars:
+        return [table_html]
+
+    parsed = _extract_table_header_and_rows(table_html)
+    if parsed is None:
+        return [table_html]
+
+    open_tag, header_html, data_rows, close_tag = parsed
+    if not data_rows:
+        return [table_html]
+
+    header_block = open_tag + header_html
+    chunks: List[str] = []
+    batch: List[str] = []
+
+    def flush_batch() -> None:
+        if batch:
+            chunks.append(header_block + "".join(batch) + close_tag)
+            batch.clear()
+
+    for row in data_rows:
+        candidate = header_block + "".join(batch + [row]) + close_tag
+        if len(candidate) > max_chars and batch:
+            flush_batch()
+            batch.append(row)
+            if len(header_block + row + close_tag) > max_chars:
+                flush_batch()
+            continue
+        batch.append(row)
+
+    flush_batch()
+    return chunks if chunks else [table_html]
+
+
+def _split_oversized_table_segment(
+    segment: str, max_chars: int = MAX_EMBEDDING_CHARS
+) -> List[str]:
+    """拆分含 HTML 表格的超长片段；表前/表后短文本分别并入首段/末段。"""
+    if len(segment) <= max_chars:
+        return [segment]
+
+    table_match = _TABLE_HTML_PATTERN.search(segment)
+    if not table_match:
+        return [segment]
+
+    before = segment[: table_match.start()]
+    after = segment[table_match.end() :]
+    table_html = table_match.group(0)
+
+    first_limit = max(max_chars - len(before), 200)
+    table_chunks = _split_table_html_by_rows(table_html, first_limit)
+    if len(table_chunks) <= 1 and len(table_html) > first_limit:
+        table_chunks = _split_table_html_by_rows(table_html, max_chars)
+
+    if len(table_chunks) <= 1:
+        return [segment]
+
+    result: List[str] = []
+    for index, table_part in enumerate(table_chunks):
+        part = table_part
+        if index == 0:
+            part = before + part
+        if index == len(table_chunks) - 1:
+            part = part + after
+        result.append(part)
+    return result
+
+
 def _split_segments_preserving_tables(text: str) -> List[Tuple[str, bool]]:
     """将文本拆成 [(片段, 是否为完整 HTML 表格), ...]。"""
     segments: List[Tuple[str, bool]] = []
@@ -220,7 +324,7 @@ def _split_content_to_documents(
     char_page_mapping: List[int] | None = None,
     text_offset: int = 0,
 ) -> List[Document]:
-    """切块：普通文本按 chunk_size 切，HTML 表格整表保留。"""
+    """切块：普通文本按 chunk_size 切；HTML 表格整表保留，超 Embedding 上限则按行拆分。"""
     documents: List[Document] = []
     plain_splitter = _make_text_splitter(
         chunk_size=chunk_size,
@@ -237,13 +341,18 @@ def _split_content_to_documents(
         segment_start = text_offset
 
         if is_table:
-            meta = dict(base_metadata)
-            if char_page_mapping is not None:
-                meta["page"] = _page_from_char_mapping(
-                    segment_start, len(segment), char_page_mapping
-                )
-                meta["start_index"] = segment_start
-            documents.append(Document(page_content=segment, metadata=meta))
+            table_parts = _split_oversized_table_segment(segment)
+            for part_index, part in enumerate(table_parts):
+                meta = dict(base_metadata)
+                if len(table_parts) > 1:
+                    meta["table_part"] = part_index + 1
+                    meta["table_parts"] = len(table_parts)
+                if char_page_mapping is not None:
+                    meta["page"] = _page_from_char_mapping(
+                        segment_start, len(segment), char_page_mapping
+                    )
+                    meta["start_index"] = segment_start
+                documents.append(Document(page_content=part, metadata=meta))
         else:
             sub_docs = plain_splitter.create_documents(
                 [segment], metadatas=[dict(base_metadata)]

@@ -30,6 +30,7 @@ web/data/chunk_debug/**
 !web/data/chunk_debug/00-说明/
 !web/data/chunk_debug/00-说明/README.md
 
+doc/
 doc1/
 doc2/
 doc3/

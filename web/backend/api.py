@@ -21,6 +21,7 @@ from web.backend.rag_service import (
     delete_vector_store,
     get_chat_options,
     iter_ask_question,
+    iter_append_vector_store,
     iter_build_vector_store,
     list_chat_history,
     list_vector_stores,
@@ -117,6 +118,28 @@ def build_vector_store_endpoint(body: BuildIndexRequest):
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/vector-stores/{store_id}/append/stream")
+def append_vector_store_stream_endpoint(
+    store_id: str, body: AppendDataSourceRequest
+):
+    def event_generator():
+        for event in iter_append_vector_store(
+            store_id=store_id,
+            pdf_folder_path=body.pdf_folder_path,
+        ):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/api/vector-stores/{store_id}/append")
