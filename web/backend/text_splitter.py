@@ -58,6 +58,21 @@ def _make_text_splitter(
     )
 
 
+def _make_page_text_splitter(
+    *,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
+) -> RecursiveCharacterTextSplitter:
+    """创建按 token 计量的页内文本切分器。"""
+    validate_chunk_params(chunk_size, chunk_overlap)
+    return RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        encoding_name="cl100k_base",
+        separators=["\n\n", "\n", ".", " ", ""],
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+    )
+
+
 def _is_table_prefix_plain(text: str) -> bool:
     """判断表格前的短文本是否应并入表格 chunk（表题/来源说明等）。"""
     stripped = text.strip()
@@ -323,14 +338,21 @@ def _split_content_to_documents(
     chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
     char_page_mapping: List[int] | None = None,
     text_offset: int = 0,
+    preserve_page: bool = False,
 ) -> List[Document]:
     """切块：普通文本按 chunk_size 切；HTML 表格整表保留，超 Embedding 上限则按行拆分。"""
     documents: List[Document] = []
-    plain_splitter = _make_text_splitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        add_start_index=char_page_mapping is not None,
-    )
+    if preserve_page:
+        plain_splitter = _make_page_text_splitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
+    else:
+        plain_splitter = _make_text_splitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            add_start_index=char_page_mapping is not None,
+        )
 
     for segment, is_table in _merge_table_adjacent_segments(
         _expand_inter_table_plain_segments(_split_segments_preserving_tables(text))
@@ -404,6 +426,7 @@ def build_documents_per_page(
                 dict(page_doc.metadata),
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
+                preserve_page=True,
             )
         )
 

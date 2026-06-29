@@ -46,7 +46,7 @@ web/data/
 | 内容 | 说明 |
 |--------|--------|
 | 向量库信息 | 向量库 ID、参与建库的 PDF 路径 |
-| 建库参数 | 路由模式（`per_page` / `full_text`）、`chunk_size`、`chunk_overlap`、总块数 |
+| 建库参数 | 路由模式、`chunk_size`、`chunk_overlap`、总块数；`per_page` 参数单位为 token，`full_text` 参数单位为字符 |
 | Chunk 信息 | 页码、路由方式、字符数、是否包含 HTML 表格 |
 | Chunk 正文 | 实际送入 Embedding 的文本内容 |
 

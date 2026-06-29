@@ -31,6 +31,7 @@ export default function AddDataSourcePanel({
 
   const chunkSize = store.chunk_size ?? 300;
   const chunkOverlap = store.chunk_overlap ?? 50;
+  const chunkUnit = store.route === "per_page" ? "token" : "字符";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -103,7 +104,7 @@ export default function AddDataSourcePanel({
           <div>
             <dt className="uppercase tracking-widest">切块参数</dt>
             <dd className="mt-1 text-[#2f3437]">
-              size {chunkSize} / overlap {chunkOverlap}
+              size {chunkSize} {chunkUnit} / overlap {chunkOverlap} {chunkUnit}
             </dd>
           </div>
         </dl>

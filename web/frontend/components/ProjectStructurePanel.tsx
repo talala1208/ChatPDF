@@ -725,7 +725,7 @@ export default function ProjectStructurePanel({
               />
               <ModuleItem
                 name="rag_service.py"
-                desc="建库与问答编排：DashScope Embedding、FAISS/BM25 持久化、Prompt 预设、load_qa_chain"
+                desc="建库与问答编排：DashScope Embedding、FAISS/BM25 持久化、load_qa_chain"
               />
               <ModuleItem
                 name="mineru_pdf.py"
@@ -733,7 +733,7 @@ export default function ProjectStructurePanel({
               />
               <ModuleItem
                 name="text_splitter.py"
-                desc="文本切块：per_page 按页 / full_text 全书，表格整表保留、表题脚注合并"
+                desc="文本切块：per_page 逐物理页、页内按 token 切分且不跨页；full_text 全书按字符切分"
               />
               <ModuleItem
                 name="hybrid_retriever.py"
@@ -742,6 +742,10 @@ export default function ProjectStructurePanel({
               <ModuleItem
                 name="llm_reranker.py"
                 desc="可选 LLM 重排：对候选 chunk 打相关度分，与混合检索分加权融合"
+              />
+              <ModuleItem
+                name="prompt/ + prompt_config.py"
+                desc="qa.yml 与 rerank.yml 管理问答/重排模板；后端启动时统一加载并校验占位符"
               />
               <ModuleItem
                 name="chunk_debug.py"

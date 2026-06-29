@@ -11,6 +11,7 @@ from typing import List, Optional, Tuple
 from langchain_community.llms import Tongyi
 from langchain_core.documents import Document
 
+from web.backend.prompt_config import load_rerank_prompt
 from web.backend.token_usage import TokenUsage, token_usage_from_llm_result
 
 # 单条 chunk 送入重排 Prompt 的最大字符数
@@ -18,14 +19,7 @@ _MAX_RERANK_DOC_CHARS = 600
 # LLM 分数在最终排序中的权重（与 hybrid 检索分加权）
 DEFAULT_LLM_RERANK_WEIGHT = 0.7
 
-_RERANK_PROMPT = """你是检索重排助手。根据用户问题，为每条文档片段评估相关程度（0-10 整数，10 最相关）。
-
-用户问题：{query}
-
-文档列表：
-{documents}
-
-只返回 JSON 数组，每项格式 {{"index": 0, "score": 8}}，index 为文档序号（从 0 开始）。不要输出其他内容。"""
+_RERANK_PROMPT = load_rerank_prompt()
 
 
 def _format_doc_for_rerank(index: int, doc: Document) -> str:

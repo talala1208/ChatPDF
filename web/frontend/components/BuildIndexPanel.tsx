@@ -17,8 +17,8 @@ const ROUTES: {
     id: "per_page",
     title: "按页切块 (per_page)",
     descLines: [
-      "每页单独切块，页边界连贯性略弱。",
-      "适合内容按页划分明确的文档。（例如：合同、手册等）"
+      "逐物理页处理，普通文本在单页内按 token 切分且不跨页。",
+      "页码与 PDF 一致，适合合同、手册等按页组织的文档。"
     ],
   },
   {
@@ -49,6 +49,10 @@ export default function BuildIndexPanel({ onBuilt }: BuildIndexPanelProps) {
   const [totalDurationMs, setTotalDurationMs] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const chunkSizeLabel =
+    route === "per_page" ? "每个普通文本块的最大 token 数" : "每个普通文本块的最大字符数";
+  const chunkOverlapLabel =
+    route === "per_page" ? "相邻块重叠 token 数" : "相邻块重叠字符数";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -170,9 +174,9 @@ export default function BuildIndexPanel({ onBuilt }: BuildIndexPanelProps) {
                 />
               </div>
               <p className="mt-2 text-xs leading-relaxed text-[#787774]">
-                每个文本块的最大字符数，默认 300。
+                {chunkSizeLabel}，默认 300。
                 <br />
-                表格按整表保留，不会被切分。
+                表格优先整表保留，超出 Embedding 长度时按行切分。
               </p>            </div>
             <div>
               <div className="flex items-center gap-3">
@@ -196,7 +200,7 @@ export default function BuildIndexPanel({ onBuilt }: BuildIndexPanelProps) {
                 />
               </div>
               <p className="mt-2 text-xs text-[#787774]">
-                相邻块重叠字符数，须小于 Chunk Size，默认 50。
+                {chunkOverlapLabel}，须小于 Chunk Size，默认 50。
               </p>
             </div>
           </div>

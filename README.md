@@ -2,13 +2,13 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-基于「文档」的智能检索平台 —— 上传 PDF 建库，混合检索 + 流式问答。
+基于「文档」的智能检索平台
 
-![首页预览](./homepage.png)
+![首页预览](./image/homepage.gif)
 
 ## 功能概览
 
-- **PDF 建库**：本地文件夹批量导入，支持按页 / 全书两种切块策略
+- **PDF 建库**：本地文件夹批量导入；按页路由逐物理页、页内按 token 切分，全书路由连续按字符切分
 - **混合检索**：FAISS 向量 + BM25，RRF 融合，可选 LLM 重排
 - **流式问答**：通义 / DeepSeek 模型，多预设 Prompt，带来源引用
 - **Debug 面板**：建库切块 Markdown 可视化，便于排查检索效果
@@ -27,28 +27,29 @@
 
 **新建向量库**
 
-![新建向量库](./新建向量库.png)
+![新建向量库](./image/新建向量库.png)
 
 **向量库详情**
-支持知识库问答及数据源的增删功能。
 
-![向量库详情](./向量库详情页.png)
+- 支持知识库问答及数据源的增删功能。
+
+![向量库详情](./image/向量库详情页.png)
 
 **RAG 问答**
 
-![RAG问答](./RAG问答.png)
+![RAG问答](./image/RAG问答.png)
 
 **增量更新数据库**
 
-![添加数据源](./添加数据源.png)
+![添加数据源](./image/添加数据源.png)
 
 **Debug 预览**
 
-![Debug 面板](./debug.png)
+![Debug 面板](./image/debug.png)
 
 ## 架构
 
-![系统架构](./flow-chart.png)
+![系统架构](./image/flow-chart.png)
 
 ```
 PDF 文件夹 → MinerU 解析 → 切块 → DashScope Embedding → FAISS + BM25
@@ -92,13 +93,28 @@ cd web/frontend && npm run dev
 
 ```
 ChatPDF/
+├── prompt/               # YAML Prompt 配置
+│   ├── qa.yml            # 问答预设及模板
+│   └── rerank.yml        # LLM 重排模板
 ├── web/
-│   ├── backend/       # FastAPI + RAG 核心
-│   ├── frontend/      # Next.js Web UI
-│   └── data/          # 向量库、Debug 文件等运行时数据
-├── doc1/ doc2/ doc3/  # 示例 PDF（本地测试用）
-└── .env.example       # 环境变量模板
+│   ├── backend/          # FastAPI + RAG 核心
+│   ├── frontend/         # Next.js Web UI
+│   └── data/             # 向量库、Debug 文件等运行时数据
+├── image/                # README 界面与架构截图
+├── test/                 # 后端定向测试
+├── doc/                  # 示例 PDF（本地测试用）
+└── .env.example          # 环境变量模板
 ```
+
+## Prompt 配置
+
+问答和重排 Prompt 不再写在 Python 文件中，统一由项目根目录 `prompt/` 下的 YAML 文件管理：
+
+- `prompt/qa.yml`：维护 `default`、`strict`、`concise`、`detailed` 四种问答预设的标签和模板。
+- `prompt/rerank.yml`：维护 LLM 检索重排模板。
+- `web/backend/prompt_config.py`：启动时读取并校验 YAML；文件缺失、结构错误或缺少必要占位符时直接报错。
+
+问答模板必须保留 `{context}`、`{question}`，重排模板必须保留 `{query}`、`{documents}`。
 
 ## 说明
 

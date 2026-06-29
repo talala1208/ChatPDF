@@ -12,7 +12,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, List, Literal
+from typing import Iterator, List
 
 from dotenv import load_dotenv
 from langchain_classic.chains.question_answering import load_qa_chain
@@ -34,6 +34,7 @@ from web.backend.chunk_debug import (
 )
 from web.backend.hybrid_retriever import hybrid_search_with_score, rebuild_bm25_index
 from web.backend.llm_reranker import llm_rerank_documents
+from web.backend.prompt_config import PromptPreset, load_qa_prompt_config
 from web.backend.token_usage import (
     TokenUsageCallbackHandler,
     merge_token_usages,
@@ -58,8 +59,6 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY")
 
-PromptPreset = Literal["default", "strict", "concise", "detailed"]
-
 DEFAULT_TEMPERATURE = 0.1
 # LLM 重排时混合检索候选池倍数（相对 Top-K）
 _LLM_RERANK_CANDIDATE_MULTIPLIER = 4
@@ -69,33 +68,14 @@ ALLOWED_LLM_MODELS = ["deepseek-v3", "qwen-turbo", "qwen-plus", "qwen-max"]
 DEFAULT_LLM_MODEL = "deepseek-v3"
 DEFAULT_RERANK_MODEL = "qwen-turbo"
 
+_QA_PROMPT_CONFIG = load_qa_prompt_config()
 PROMPT_PRESET_LABELS: dict[PromptPreset, str] = {
-    "default": "默认",
-    "strict": "严格依据文档",
-    "concise": "简洁回答",
-    "detailed": "分步详述",
+    preset_id: config["label"]
+    for preset_id, config in _QA_PROMPT_CONFIG.items()
 }
-
-_PROMPT_TEMPLATES: dict[PromptPreset, str | None] = {
-    "default": None,
-    "strict": """请严格根据以下上下文回答问题。若上下文中没有足够信息，请明确回答「根据提供的文档无法确定」，不要编造内容。
-
-{context}
-
-问题：{question}
-回答：""",
-    "concise": """根据以下上下文，用简洁的语言回答问题，控制在 3 句话以内。
-
-{context}
-
-问题：{question}
-回答：""",
-    "detailed": """根据以下上下文详细回答问题。请分点说明，并在适当时引用上下文中的关键表述。
-
-{context}
-
-问题：{question}
-回答：""",
+_PROMPT_TEMPLATES: dict[PromptPreset, str] = {
+    preset_id: config["template"]
+    for preset_id, config in _QA_PROMPT_CONFIG.items()
 }
 
 
@@ -131,10 +111,8 @@ def _validate_prompt_preset(prompt_preset: str) -> PromptPreset:
     return prompt_preset  # type: ignore[return-value]
 
 
-def _build_qa_prompt(prompt_preset: PromptPreset) -> PromptTemplate | None:
+def _build_qa_prompt(prompt_preset: PromptPreset) -> PromptTemplate:
     template = _PROMPT_TEMPLATES[prompt_preset]
-    if template is None:
-        return None
     return PromptTemplate(
         template=template,
         input_variables=["context", "question"],
@@ -735,10 +713,7 @@ def iter_ask_question(
             model_kwargs={"temperature": temperature},
         )
         qa_prompt = _build_qa_prompt(prompt_preset)
-        chain_kwargs = {"chain_type": "stuff"}
-        if qa_prompt is not None:
-            chain_kwargs["prompt"] = qa_prompt
-        chain = load_qa_chain(llm, **chain_kwargs)
+        chain = load_qa_chain(llm, chain_type="stuff", prompt=qa_prompt)
         docs = [doc for doc, _ in docs_with_scores]
         qa_handler = TokenUsageCallbackHandler()
         response = chain.invoke(

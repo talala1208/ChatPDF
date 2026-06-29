@@ -103,8 +103,8 @@ export default function UsageGuidePanel({
             <h2 className="text-base font-medium text-[#111111]">3. 建库</h2>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-[#3c4043]">
               <li>
-                <strong>按页切块 (per_page)</strong>：每页单独切块，页码与 PDF
-                一致，适合精确引用。
+                <strong>按页切块 (per_page)</strong>：逐物理页处理，普通文本在单页内按{" "}
+                <code>cl100k_base</code> token 切分，chunk 不跨页且页码与 PDF 一致。
               </li>
               <li>
                 <strong>全书切块 (full_text)</strong>：全书连续切块，语义更连贯；跨页
@@ -127,7 +127,8 @@ export default function UsageGuidePanel({
                 可开启 <strong>LLM Rerank</strong>，用独立模型对候选 chunk 重排后再生成回答。
               </li>
               <li>
-                下方预设按钮切换 Prompt 风格（默认 / 严格 / 简洁 / 分步详述）。
+                下方预设按钮切换 Prompt 风格（默认 / 严格 / 简洁 / 分步详述）；模板由项目根目录{" "}
+                <code>prompt/qa.yml</code> 管理。
               </li>
               <li>修改切块或检索逻辑后需重新建库才能生效。</li>
             </ul>

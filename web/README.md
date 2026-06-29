@@ -11,27 +11,35 @@
 ## 目录结构
 
 ```
-web/
-├── backend/          # FastAPI + RAG 核心
-│   ├── api.py              # HTTP 路由
-│   ├── rag_service.py      # 建库/问答/历史（最重要）
-│   ├── hybrid_retriever.py # FAISS + BM25 + RRF
-│   ├── llm_reranker.py     # 可选 LLM 重排
-│   ├── text_splitter.py    # per_page / full_text 切块
-│   ├── mineru_pdf.py       # MinerU 云端解析
-│   └── chunk_debug.py      # 切块 Markdown 调试输出
-├── frontend/         # Next.js 15 App Router
-│   ├── app/page.tsx        # 单页主路由（MainView + GuidePanel）
-│   ├── components/         # UI 面板
-│   └── lib/
-│       ├── api.ts          # 后端 API 客户端
-│       ├── app-guide-context.tsx  # 文档/Debug 面板全局状态
-│       └── docs-nav.ts     # 文档侧栏常量
-├── data/             # 运行时数据（git 通常忽略内容）
-│   ├── vector_stores/      # FAISS 索引 + manifest + bm25.pkl
-│   ├── chunk_debug/        # 建库切块 Markdown（Debug 面板读取）
-│   ├── mineru_output/      # MinerU 原始解析结果
-│   └── chat_history.json
+ChatPDF/
+├── prompt/                 # YAML Prompt 配置
+│   ├── qa.yml              # 四种问答预设及模板
+│   └── rerank.yml          # LLM 重排模板
+├── web/
+│   ├── backend/            # FastAPI + RAG 核心
+│   │   ├── api.py              # HTTP 路由
+│   │   ├── rag_service.py      # 建库/问答/历史（最重要）
+│   │   ├── hybrid_retriever.py # FAISS + BM25 + RRF
+│   │   ├── llm_reranker.py     # 可选 LLM 重排
+│   │   ├── prompt_config.py    # Prompt YAML 加载与校验
+│   │   ├── text_splitter.py    # per_page / full_text 切块
+│   │   ├── mineru_pdf.py       # MinerU 云端解析
+│   │   └── chunk_debug.py      # 切块 Markdown 调试输出
+│   ├── frontend/           # Next.js 15 App Router
+│   │   ├── app/page.tsx        # 单页主路由（MainView + GuidePanel）
+│   │   ├── components/         # UI 面板
+│   │   └── lib/
+│   │       ├── api.ts          # 后端 API 客户端
+│   │       ├── app-guide-context.tsx  # 文档/Debug 面板全局状态
+│   │       └── docs-nav.ts     # 文档侧栏常量
+│   └── data/               # 运行时数据（git 通常忽略内容）
+│       ├── vector_stores/      # FAISS 索引 + manifest + bm25.pkl
+│       ├── chunk_debug/        # 建库切块 Markdown（Debug 面板读取）
+│       ├── mineru_output/      # MinerU 原始解析结果
+│       └── chat_history.json
+├── image/                  # README 界面与架构截图
+├── test/                   # 后端定向测试
+└── TEST_RESULTS.md         # 自动化检查记录
 ```
 
 ## 启动
@@ -77,12 +85,20 @@ PDF 文件夹
 
 问答
   → hybrid_search_with_score (向量 Top-K + BM25 Top-K → RRF)
-  → 可选 llm_rerank_documents
-  → load_qa_chain + Tongyi 流式输出
+  → prompt/rerank.yml + 可选 llm_rerank_documents
+  → prompt/qa.yml + load_qa_chain + Tongyi 流式输出
   → 写入 chat_history.json
 ```
 
-建库路由 `per_page`：按 PDF 页切块；`full_text`：全书切块并带 `start_index`。
+建库路由 `per_page`：逐物理页处理，普通文本在单页内按 `cl100k_base` token 切分，chunk 不跨页；`full_text`：全书按字符连续切块并带 `start_index`。
+
+## Prompt 配置
+
+- `../prompt/qa.yml`：维护 `default`、`strict`、`concise`、`detailed` 四种问答预设的标签和模板。
+- `../prompt/rerank.yml`：维护 LLM 检索重排模板。
+- `backend/prompt_config.py`：以 UTF-8 读取 YAML，并校验预设结构与必需占位符。
+
+问答模板必须包含 `{context}`、`{question}`，重排模板必须包含 `{query}`、`{documents}`。配置缺失或无效时后端直接启动失败，不使用内置 Prompt 回退。
 
 ## API 速查
 
@@ -128,9 +144,10 @@ PDF 文件夹
 
 | 文件 | 要点 |
 |------|------|
-| `rag_service.py` | 向量库 CRUD、建库 SSE、`iter_ask_question`、Prompt 预设、历史持久化 |
+| `rag_service.py` | 向量库 CRUD、建库 SSE、`iter_ask_question`、历史持久化 |
 | `hybrid_retriever.py` | BM25 分词、RRF 融合、表块升级 |
 | `llm_reranker.py` | 候选池扩大后 LLM 打分，权重 `DEFAULT_LLM_RERANK_WEIGHT=0.7` |
+| `prompt_config.py` | 加载并校验 `prompt/*.yml`，向问答和重排模块提供模板 |
 | `chunk_debug.py` | 建库时按 PDF 写 `{pdf名}.md`，供 Debug 面板浏览 |
 
 默认 LLM：`deepseek-v3`；重排模型：`qwen-turbo`。
@@ -147,6 +164,8 @@ PDF 文件夹
 
 ## 近期进展（Agent 完成重要改动后请更新本节）
 
+- Prompt 从 Python 内嵌字符串迁移到项目根目录 `prompt/qa.yml` 与 `prompt/rerank.yml`，由 `prompt_config.py` 统一校验加载
+- `per_page` 路由改为逐物理页、页内按 `cl100k_base` token 切分，避免跨页 chunk
 - **v0.5.0**：向量库详情单 PDF 删除（`DELETE /api/vector-stores/{id}/pdfs`，同步 FAISS/BM25/chunk_debug/MinerU）；`MarkdownPreview` 增强问答渲染；历史详情展示 token 用量；UI 字号统一为 `text-xs`
 - **v0.4.0**：追加数据源 SSE 流式进度（`/append/stream`）、`AddDataSourcePanel` 展示 run steps；chunk debug 增强；`text_splitter` 支持超大 HTML 表格切块；删库/清理 orphan 输出
 - 文档页「使用说明」「项目结构」与 Debug 共用左侧 `DocsTreeSection` 边栏（`page.tsx` 移除全屏 early return）
@@ -157,6 +176,7 @@ PDF 文件夹
 | 任务 | 先看 |
 |------|------|
 | 改问答/检索 | `rag_service.py` → `hybrid_retriever.py` → `llm_reranker.py` |
+| 改 Prompt | `../prompt/qa.yml` / `../prompt/rerank.yml` → `backend/prompt_config.py` |
 | 改建库/切块 | `rag_service.py` → `text_splitter.py` → `mineru_pdf.py` |
 | 改 API | `api.py` + `rag_service.py` |
 | 改前端 UI/导航 | `page.tsx` → `Sidebar.tsx` / `DocsTreeSection.tsx` |
