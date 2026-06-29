@@ -4,7 +4,7 @@
 
 基于「文档」的智能检索平台
 
-![首页预览](./image/homepage.gif)
+![首页预览](./image/homepage.png)
 
 ## 功能概览
 
