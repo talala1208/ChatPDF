@@ -10,6 +10,7 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 QA_PROMPT_PATH = PROJECT_ROOT / "prompt" / "qa.yml"
 RERANK_PROMPT_PATH = PROJECT_ROOT / "prompt" / "rerank.yml"
+QUERY_REWRITE_PROMPT_PATH = PROJECT_ROOT / "prompt" / "query_rewrite.yml"
 
 PromptPreset = Literal["default", "strict", "concise", "detailed"]
 
@@ -67,4 +68,15 @@ def load_rerank_prompt(path: Path = RERANK_PROMPT_PATH) -> str:
         raise ValueError("重排 Prompt 模板不能为空")
     if "{query}" not in template or "{documents}" not in template:
         raise ValueError("重排 Prompt 缺少 query 或 documents")
+    return template
+
+
+def load_query_rewrite_prompt(path: Path = QUERY_REWRITE_PROMPT_PATH) -> str:
+    """加载 Query 改写模板，并校验必需占位符。"""
+    template = _load_yaml(path).get("template")
+    if not isinstance(template, str) or not template.strip():
+        raise ValueError("Query 改写 Prompt 模板不能为空")
+    for placeholder in ("{store_context}", "{conversation_history}", "{question}"):
+        if placeholder not in template:
+            raise ValueError(f"Query 改写 Prompt 缺少 {placeholder}")
     return template

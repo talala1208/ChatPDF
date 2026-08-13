@@ -26,7 +26,13 @@ const FALLBACK_PRESETS: { id: PromptPreset; label: string }[] = [
   { id: "detailed", label: "分步详述" },
 ];
 
-type OpenPanel = "topK" | "temperature" | "modelMenu" | "rerankModelMenu" | null;
+type OpenPanel =
+  | "topK"
+  | "temperature"
+  | "modelMenu"
+  | "rerankModelMenu"
+  | "rewriteModelMenu"
+  | null;
 
 function formatDuration(ms: number): string {
   if (ms >= 1000) {
@@ -42,6 +48,9 @@ export default function ChatPanel({ store, onAsked }: ChatPanelProps) {
   const [temperature, setTemperature] = useState(0.1);
   const [llmRerank, setLlmRerank] = useState(false);
   const [rerankModel, setRerankModel] = useState("qwen-turbo");
+  const [queryRewrite, setQueryRewrite] = useState(true);
+  const [rewriteModel, setRewriteModel] = useState("qwen-turbo");
+  const [secondaryRetrieval, setSecondaryRetrieval] = useState(true);
   const [promptPreset, setPromptPreset] = useState<PromptPreset>("default");
   const [models, setModels] = useState<string[]>(FALLBACK_MODELS);
   const [presets, setPresets] =
@@ -63,6 +72,15 @@ export default function ChatPanel({ store, onAsked }: ChatPanelProps) {
         setModel(options.default_llm_model);
         if (options.default_rerank_model) {
           setRerankModel(options.default_rerank_model);
+        }
+        if (options.default_rewrite_model) {
+          setRewriteModel(options.default_rewrite_model);
+        }
+        if (options.default_query_rewrite != null) {
+          setQueryRewrite(options.default_query_rewrite);
+        }
+        if (options.default_secondary_retrieval != null) {
+          setSecondaryRetrieval(options.default_secondary_retrieval);
         }
         if (options.default_temperature != null) {
           setTemperature(options.default_temperature);
@@ -100,6 +118,11 @@ export default function ChatPanel({ store, onAsked }: ChatPanelProps) {
     setOpenPanel(null);
   }
 
+  function selectRewriteModel(nextModel: string) {
+    setRewriteModel(nextModel);
+    setOpenPanel(null);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -119,6 +142,9 @@ export default function ChatPanel({ store, onAsked }: ChatPanelProps) {
           prompt_preset: promptPreset,
           llm_rerank: llmRerank,
           rerank_model: rerankModel,
+          query_rewrite: queryRewrite,
+          rewrite_model: rewriteModel,
+          secondary_retrieval: secondaryRetrieval,
         },
         (event) => {
           if (event.type === "step") {
@@ -292,6 +318,98 @@ export default function ChatPanel({ store, onAsked }: ChatPanelProps) {
                 )}
               </div>
             )}
+
+            <label className="inline-flex cursor-pointer items-center gap-2">
+              <span>Query 改写</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={queryRewrite}
+                aria-label="Query 改写"
+                disabled={loading}
+                onClick={() => {
+                  setQueryRewrite((value) => !value);
+                  setOpenPanel((panel) =>
+                    panel === "rewriteModelMenu" ? null : panel
+                  );
+                }}
+                className={`inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors disabled:opacity-50 ${
+                  queryRewrite ? "bg-[#111111]" : "bg-[#dadce0]"
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                    queryRewrite ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </label>
+
+            {queryRewrite && (
+              <div className="relative">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => togglePanel("rewriteModelMenu")}
+                  className={`inline-flex items-center gap-1 transition-colors hover:text-[#111111] disabled:opacity-50 ${
+                    openPanel === "rewriteModelMenu"
+                      ? "font-medium text-[#111111]"
+                      : ""
+                  }`}
+                >
+                  改写模型：{rewriteModel}
+                  <span className="text-[10px] leading-none text-[#787774]">
+                    ▼
+                  </span>
+                </button>
+
+                {openPanel === "rewriteModelMenu" && (
+                  <div className="absolute left-0 top-full z-20 mt-2 min-w-[180px] overflow-hidden rounded-xl border border-[#eaeaea] bg-white py-2 shadow-lg">
+                    {models.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => selectRewriteModel(item)}
+                        className={`block w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-[#f8f9fa] ${
+                          rewriteModel === item
+                            ? "font-medium text-[#111111]"
+                            : "text-[#3c4043]"
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <label className="inline-flex cursor-pointer items-center gap-2">
+              <span>二次检索</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={secondaryRetrieval}
+                aria-label="低置信度二次检索"
+                disabled={loading || !queryRewrite}
+                onClick={() => setSecondaryRetrieval((value) => !value)}
+                className={`inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors disabled:opacity-50 ${
+                  secondaryRetrieval && queryRewrite
+                    ? "bg-[#111111]"
+                    : "bg-[#dadce0]"
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                    secondaryRetrieval && queryRewrite
+                      ? "translate-x-4"
+                      : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </label>
           </div>
 
           {openPanel === "topK" && (

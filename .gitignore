@@ -31,3 +31,8 @@ web/data/chunk_debug/**
 !web/data/chunk_debug/00-说明/README.md
 
 doc/
+resume/
+test/
+
+# 参考文件
+temp/

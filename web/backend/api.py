@@ -14,6 +14,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
 from web.backend.chunk_debug import list_chunk_debug_tree, read_chunk_debug_file
+from web.backend.llm_config import (
+    DEFAULT_LLM_MODEL,
+    DEFAULT_QUERY_REWRITE_MODEL,
+    DEFAULT_RERANK_MODEL,
+)
 from web.backend.rag_service import (
     append_vector_store,
     build_vector_store,
@@ -68,11 +73,18 @@ class AskRequest(BaseModel):
     vector_store_id: str
     question: str = Field(..., min_length=1)
     k: int = Field(default=4, ge=1, le=20)
-    model: str = Field(default="deepseek-v3", description="LLM 模型名称")
+    model: str = Field(default=DEFAULT_LLM_MODEL, description="LLM 模型名称")
     temperature: float = Field(default=0.1, ge=0.0, le=1.0)
     prompt_preset: Literal["default", "strict", "concise", "detailed"] = "default"
     llm_rerank: bool = Field(default=False, description="是否启用 LLM 重排")
-    rerank_model: str = Field(default="qwen-turbo", description="LLM 重排模型名称")
+    rerank_model: str = Field(default=DEFAULT_RERANK_MODEL, description="LLM 重排模型名称")
+    query_rewrite: bool = Field(default=True, description="是否启用 Query 改写")
+    rewrite_model: str = Field(
+        default=DEFAULT_QUERY_REWRITE_MODEL, description="Query 改写模型名称"
+    )
+    secondary_retrieval: bool = Field(
+        default=True, description="低置信度时是否二次检索"
+    )
 
 
 @app.get("/api/health")
@@ -231,6 +243,9 @@ def chat_stream_endpoint(body: AskRequest):
             prompt_preset=body.prompt_preset,
             llm_rerank=body.llm_rerank,
             rerank_model=body.rerank_model,
+            query_rewrite=body.query_rewrite,
+            rewrite_model=body.rewrite_model,
+            secondary_retrieval=body.secondary_retrieval,
         ):
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 

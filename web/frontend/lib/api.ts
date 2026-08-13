@@ -16,7 +16,10 @@ export interface ChatOptions {
   llm_models: string[];
   default_llm_model: string;
   default_rerank_model?: string;
+  default_rewrite_model?: string;
   default_temperature?: number;
+  default_query_rewrite?: boolean;
+  default_secondary_retrieval?: boolean;
   prompt_presets: { id: PromptPreset; label: string }[];
 }
 
@@ -54,6 +57,22 @@ export interface TokenBreakdownStep extends TokenUsage {
   model?: string;
 }
 
+export interface QueryRewriteMeta {
+  enabled: boolean;
+  model: string;
+  needs_rewrite: boolean;
+  query_type: string;
+  original_query: string;
+  retrieval_query: string;
+  sub_queries?: string[];
+  confidence: number;
+  reason?: string;
+  secondary_retrieval?: boolean;
+  secondary_queries?: string[];
+  retrieval_confidence?: number;
+  retrieval_confidence_after?: number;
+}
+
 export interface ChatRecord {
   id: string;
   vector_store_id: string;
@@ -67,6 +86,11 @@ export interface ChatRecord {
   prompt_preset?: PromptPreset;
   llm_rerank?: boolean;
   rerank_model?: string | null;
+  query_rewrite?: boolean;
+  rewrite_model?: string | null;
+  secondary_retrieval?: boolean;
+  query_rewrite_meta?: QueryRewriteMeta;
+  retrieval_confidence?: number;
   token_usage?: TokenUsage;
   token_breakdown?: TokenBreakdownStep[];
   created_at: string;
@@ -116,6 +140,17 @@ export function getChatSettingItems(record: ChatRecord): ChatSettingItem[] {
   if (record.llm_rerank && record.rerank_model) {
     items.push({ label: "Rerank 模型", value: record.rerank_model });
   }
+  items.push({
+    label: "Query 改写",
+    value: record.query_rewrite === false ? "关闭" : "开启",
+  });
+  if (record.query_rewrite !== false && record.rewrite_model) {
+    items.push({ label: "改写模型", value: record.rewrite_model });
+  }
+  items.push({
+    label: "二次检索",
+    value: record.secondary_retrieval === false ? "关闭" : "开启",
+  });
 
   return items;
 }
@@ -373,6 +408,9 @@ export async function askQuestion(payload: {
   prompt_preset?: PromptPreset;
   llm_rerank?: boolean;
   rerank_model?: string;
+  query_rewrite?: boolean;
+  rewrite_model?: string;
+  secondary_retrieval?: boolean;
 }): Promise<ChatRecord> {
   const data = await request<{ ok: boolean; record: ChatRecord }>("/api/chat", {
     method: "POST",
@@ -391,6 +429,9 @@ export async function askQuestionStream(
     prompt_preset?: PromptPreset;
     llm_rerank?: boolean;
     rerank_model?: string;
+    query_rewrite?: boolean;
+    rewrite_model?: string;
+    secondary_retrieval?: boolean;
   },
   onEvent: (event: ChatStreamEvent) => void
 ): Promise<ChatRecord> {

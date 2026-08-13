@@ -292,3 +292,52 @@ def hybrid_search_with_score(
             normalized = (raw - min_score) / score_span if raw > 0 else 0.5
         results.append((doc, normalized))
     return results
+
+
+# ---------------------------------------------------------------------------
+# 检索置信度与多路结果合并（供低置信度二次检索使用）
+# ---------------------------------------------------------------------------
+def _doc_dedupe_key(doc: Document) -> str:
+    source = str(doc.metadata.get("source", ""))
+    page = str(doc.metadata.get("page", ""))
+    content = doc.page_content.strip()[:200]
+    return f"{source}|{page}|{content}"
+
+
+def compute_retrieval_confidence(
+    docs_with_scores: List[Tuple[Document, float]],
+) -> float:
+    """
+    根据 Top 结果估算检索置信度（0~1）。
+    综合 Top-1 与 Top-3 平均分，反映混合检索是否命中相关内容。
+    """
+    if not docs_with_scores:
+        return 0.0
+
+    top_score = float(docs_with_scores[0][1])
+    if len(docs_with_scores) >= 3:
+        avg_top3 = sum(float(score) for _, score in docs_with_scores[:3]) / 3
+        return 0.6 * top_score + 0.4 * avg_top3
+    return top_score
+
+
+def merge_hybrid_results(
+    *result_lists: List[Tuple[Document, float]],
+    k: int,
+) -> List[Tuple[Document, float]]:
+    """
+    合并多次混合检索结果：按文档去重，保留较高分数，再取 Top-K。
+    """
+    if k <= 0:
+        return []
+
+    merged: dict[str, Tuple[Document, float]] = {}
+    for results in result_lists:
+        for doc, score in results:
+            key = _doc_dedupe_key(doc)
+            existing = merged.get(key)
+            if existing is None or float(score) > float(existing[1]):
+                merged[key] = (doc, float(score))
+
+    ranked = sorted(merged.values(), key=lambda item: item[1], reverse=True)
+    return ranked[:k]

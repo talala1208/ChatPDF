@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from web.backend.prompt_config import (
     load_qa_prompt_config,
+    load_query_rewrite_prompt,
     load_rerank_prompt,
 )
 from web.backend.rag_service import PROMPT_PRESET_LABELS, _build_qa_prompt
@@ -25,6 +26,18 @@ def test_prompt_yml_keeps_existing_presets_and_placeholders() -> None:
     assert "用户问题：问题" in rendered
     assert "文档列表：\n片段" in rendered
     assert '{"index": 0, "score": 8}' in rendered
+
+
+def test_query_rewrite_prompt_has_required_placeholders() -> None:
+    template = load_query_rewrite_prompt()
+    rendered = template.format(
+        store_context="库A",
+        conversation_history="（无）",
+        question="测试问题",
+    )
+    assert "库A" in rendered
+    assert "测试问题" in rendered
+    assert "retrieval_query" in rendered
 
 
 def test_prompt_yml_missing_required_placeholder_fails(tmp_path: Path) -> None:

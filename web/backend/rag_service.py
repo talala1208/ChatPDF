@@ -32,8 +32,25 @@ from web.backend.chunk_debug import (
     save_pdf_chunks_debug_md,
     save_pdf_store_chunks_debug_md,
 )
-from web.backend.hybrid_retriever import hybrid_search_with_score, rebuild_bm25_index
+from web.backend.hybrid_retriever import (
+    compute_retrieval_confidence,
+    hybrid_search_with_score,
+    merge_hybrid_results,
+    rebuild_bm25_index,
+)
+from web.backend.llm_config import (
+    ALLOWED_LLM_MODELS,
+    DEFAULT_LLM_MODEL,
+    DEFAULT_QUERY_REWRITE_MODEL,
+    DEFAULT_RERANK_MODEL,
+)
 from web.backend.llm_reranker import llm_rerank_documents
+from web.backend.query_rewriter import (
+    collect_secondary_queries,
+    format_conversation_history,
+    format_store_context,
+    rewrite_query_for_retrieval,
+)
 from web.backend.prompt_config import PromptPreset, load_qa_prompt_config
 from web.backend.token_usage import (
     TokenUsageCallbackHandler,
@@ -64,9 +81,9 @@ DEFAULT_TEMPERATURE = 0.1
 _LLM_RERANK_CANDIDATE_MULTIPLIER = 4
 _LLM_RERANK_CANDIDATE_MIN = 12
 
-ALLOWED_LLM_MODELS = ["deepseek-v3", "qwen-turbo", "qwen-plus", "qwen-max"]
-DEFAULT_LLM_MODEL = "deepseek-v3"
-DEFAULT_RERANK_MODEL = "qwen-turbo"
+# 混合检索归一化分数低于此阈值时触发二次检索
+LOW_CONFIDENCE_THRESHOLD = 0.42
+_MAX_CONVERSATION_TURNS = 3
 
 _QA_PROMPT_CONFIG = load_qa_prompt_config()
 PROMPT_PRESET_LABELS: dict[PromptPreset, str] = {
@@ -91,7 +108,10 @@ def get_chat_options() -> dict:
         "llm_models": ALLOWED_LLM_MODELS,
         "default_llm_model": DEFAULT_LLM_MODEL,
         "default_rerank_model": DEFAULT_RERANK_MODEL,
+        "default_rewrite_model": DEFAULT_QUERY_REWRITE_MODEL,
         "default_temperature": DEFAULT_TEMPERATURE,
+        "default_query_rewrite": True,
+        "default_secondary_retrieval": True,
         "prompt_presets": [
             {"id": preset_id, "label": label}
             for preset_id, label in PROMPT_PRESET_LABELS.items()
@@ -583,6 +603,22 @@ def list_chat_history() -> List[dict]:
     )
 
 
+def _recent_conversation_turns(
+    vector_store_id: str,
+    *,
+    limit: int = _MAX_CONVERSATION_TURNS,
+) -> List[dict]:
+    """取同一向量库最近若干轮问答，供 Query 改写使用。"""
+    history = _load_chat_history()
+    turns = [
+        item
+        for item in history
+        if item.get("vector_store_id") == vector_store_id
+    ]
+    turns.sort(key=lambda x: x.get("created_at", ""))
+    return turns[-limit:]
+
+
 def delete_chat_history(record_id: str) -> None:
     """删除单条问答历史。"""
     history = _load_chat_history()
@@ -601,6 +637,9 @@ def ask_question(
     prompt_preset: PromptPreset = "default",
     llm_rerank: bool = False,
     rerank_model: str = DEFAULT_RERANK_MODEL,
+    query_rewrite: bool = True,
+    rewrite_model: str = DEFAULT_QUERY_REWRITE_MODEL,
+    secondary_retrieval: bool = True,
 ) -> dict:
     """对指定向量库提问并写入历史。"""
     record = None
@@ -613,6 +652,9 @@ def ask_question(
         prompt_preset=prompt_preset,
         llm_rerank=llm_rerank,
         rerank_model=rerank_model,
+        query_rewrite=query_rewrite,
+        rewrite_model=rewrite_model,
+        secondary_retrieval=secondary_retrieval,
     ):
         if event["type"] == "done":
             record = event["record"]
@@ -632,6 +674,9 @@ def iter_ask_question(
     prompt_preset: PromptPreset = "default",
     llm_rerank: bool = False,
     rerank_model: str = DEFAULT_RERANK_MODEL,
+    query_rewrite: bool = True,
+    rewrite_model: str = DEFAULT_QUERY_REWRITE_MODEL,
+    secondary_retrieval: bool = True,
 ) -> Iterator[dict]:
     """逐步执行问答并 yield 运行记录（供 SSE 流式接口使用）。"""
     total_start = time.perf_counter()
@@ -664,19 +709,67 @@ def iter_ask_question(
 
         model_name = _validate_llm_model(model_name)
         rerank_model = _validate_llm_model(rerank_model)
+        rewrite_model = _validate_llm_model(rewrite_model)
         prompt_preset = _validate_prompt_preset(prompt_preset)
         token_breakdown: list[dict] = []
         rerank_usage = None
+        rewrite_usage = None
         qa_usage = None
+        rewrite_meta: dict | None = None
+        retrieval_confidence: float | None = None
 
         yield emit_step("加载向量库")
         knowledge_base = load_knowledge_base(vector_store_id)
         store_path = VECTOR_STORES_DIR / vector_store_id
+        manifest = _load_manifest(vector_store_id)
 
         retrieve_k = k
         if llm_rerank:
             retrieve_k = max(k * _LLM_RERANK_CANDIDATE_MULTIPLIER, _LLM_RERANK_CANDIDATE_MIN)
             retrieve_k = min(retrieve_k, 20)
+
+        retrieval_query = question
+        if query_rewrite:
+            yield emit_step("Query 改写", rewrite_model)
+            recent_turns = _recent_conversation_turns(vector_store_id)
+            rewrite_result, rewrite_usage = rewrite_query_for_retrieval(
+                question,
+                store_context=format_store_context(
+                    manifest.get("name", vector_store_id),
+                    manifest.get("pdf_files", []),
+                ),
+                conversation_history=format_conversation_history(recent_turns),
+                model_name=rewrite_model,
+                api_key=_require_api_key(),
+            )
+            retrieval_query = rewrite_result["retrieval_query"]
+            rewrite_meta = {
+                "enabled": True,
+                "model": rewrite_model,
+                "needs_rewrite": rewrite_result["needs_rewrite"],
+                "query_type": rewrite_result["query_type"],
+                "original_query": rewrite_result["original_query"],
+                "retrieval_query": retrieval_query,
+                "sub_queries": rewrite_result.get("sub_queries", []),
+                "confidence": rewrite_result["confidence"],
+                "reason": rewrite_result.get("reason", ""),
+            }
+            if rewrite_usage:
+                token_breakdown.append(
+                    {
+                        "label": "Query 改写",
+                        "model": rewrite_model,
+                        **rewrite_usage,
+                    }
+                )
+            detail = retrieval_query
+            if retrieval_query != question:
+                detail = f"{retrieval_query}（原问题：{question}）"
+            yield emit_step(
+                "Query 改写完成",
+                detail,
+                token_usage=rewrite_usage,
+            )
 
         yield emit_step(
             "混合检索 (向量+BM25)",
@@ -685,13 +778,67 @@ def iter_ask_question(
         docs_with_scores = hybrid_search_with_score(
             knowledge_base,
             store_path,
-            question,
+            retrieval_query,
             k=retrieve_k,
         )
+        retrieval_confidence = compute_retrieval_confidence(docs_with_scores)
+
+        secondary_queries: list[str] = []
+        if query_rewrite and secondary_retrieval and rewrite_meta is not None:
+            secondary_queries = collect_secondary_queries(
+                {
+                    "original_query": question,
+                    "needs_rewrite": rewrite_meta["needs_rewrite"],
+                    "query_type": rewrite_meta["query_type"],
+                    "retrieval_query": rewrite_meta["retrieval_query"],
+                    "sub_queries": rewrite_meta.get("sub_queries", []),
+                    "confidence": rewrite_meta["confidence"],
+                    "reason": rewrite_meta.get("reason", ""),
+                }
+            )
+
+        should_retry = (
+            secondary_retrieval
+            and retrieval_confidence < LOW_CONFIDENCE_THRESHOLD
+            and bool(secondary_queries)
+        )
+        if should_retry:
+            yield emit_step(
+                "低置信度二次检索",
+                f"置信度 {retrieval_confidence:.2f} < {LOW_CONFIDENCE_THRESHOLD}",
+            )
+            secondary_passes: list = [docs_with_scores]
+            for alt_query in secondary_queries:
+                secondary_passes.append(
+                    hybrid_search_with_score(
+                        knowledge_base,
+                        store_path,
+                        alt_query,
+                        k=retrieve_k,
+                    )
+                )
+            docs_with_scores = merge_hybrid_results(
+                *secondary_passes,
+                k=retrieve_k,
+            )
+            retrieval_confidence = compute_retrieval_confidence(docs_with_scores)
+            if rewrite_meta is not None:
+                rewrite_meta["secondary_retrieval"] = True
+                rewrite_meta["secondary_queries"] = secondary_queries
+                rewrite_meta["retrieval_confidence_after"] = round(
+                    retrieval_confidence, 4
+                )
+            yield emit_step(
+                "二次检索完成",
+                f"合并后置信度 {retrieval_confidence:.2f}",
+            )
+        elif rewrite_meta is not None:
+            rewrite_meta["secondary_retrieval"] = False
+            rewrite_meta["retrieval_confidence"] = round(retrieval_confidence, 4)
 
         if llm_rerank:
             docs_with_scores, rerank_usage = llm_rerank_documents(
-                question,
+                retrieval_query,
                 docs_with_scores,
                 model_name=rerank_model,
                 api_key=_require_api_key(),
@@ -749,8 +896,8 @@ def iter_ask_question(
                 }
             )
 
-        store_name = _load_manifest(vector_store_id).get("name", vector_store_id)
-        total_token_usage = merge_token_usages(rerank_usage, qa_usage)
+        store_name = manifest.get("name", vector_store_id)
+        total_token_usage = merge_token_usages(rewrite_usage, rerank_usage, qa_usage)
 
         record = {
             "id": uuid.uuid4().hex,
@@ -765,8 +912,15 @@ def iter_ask_question(
             "prompt_preset": prompt_preset,
             "llm_rerank": llm_rerank,
             "rerank_model": rerank_model if llm_rerank else None,
+            "query_rewrite": query_rewrite,
+            "rewrite_model": rewrite_model if query_rewrite else None,
+            "secondary_retrieval": secondary_retrieval,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
+        if rewrite_meta is not None:
+            record["query_rewrite_meta"] = rewrite_meta
+        if retrieval_confidence is not None and rewrite_meta is None:
+            record["retrieval_confidence"] = round(retrieval_confidence, 4)
         if total_token_usage:
             record["token_usage"] = total_token_usage
         if token_breakdown:
