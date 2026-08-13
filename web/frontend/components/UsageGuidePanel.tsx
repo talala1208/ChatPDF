@@ -65,7 +65,7 @@ export default function UsageGuidePanel({
             </p>
             <ul className="mt-3 list-disc space-y-1 pl-5 text-[#3c4043]">
               <li>
-                <code>DASHSCOPE_API_KEY</code>：Embedding 与 LLM（通义 / DeepSeek）
+                <code>DASHSCOPE_API_KEY</code>：Embedding 与 LLM（Qwen / GLM）
               </li>
               <li>
                 <code>MINERU_API_KEY</code>：MinerU 云端 PDF 解析

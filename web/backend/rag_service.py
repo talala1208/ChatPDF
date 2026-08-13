@@ -17,7 +17,6 @@ from typing import Iterator, List
 from dotenv import load_dotenv
 from langchain_classic.chains.question_answering import load_qa_chain
 from langchain_community.embeddings import DashScopeEmbeddings
-from langchain_community.llms import Tongyi
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
@@ -43,6 +42,7 @@ from web.backend.llm_config import (
     DEFAULT_LLM_MODEL,
     DEFAULT_QUERY_REWRITE_MODEL,
     DEFAULT_RERANK_MODEL,
+    create_chat_llm,
 )
 from web.backend.llm_reranker import llm_rerank_documents
 from web.backend.query_rewriter import (
@@ -854,10 +854,10 @@ def iter_ask_question(
                 )
             yield emit_step("LLM 重排", rerank_model, token_usage=rerank_usage)
 
-        llm = Tongyi(
-            model_name=model_name,
-            dashscope_api_key=DASHSCOPE_API_KEY,
-            model_kwargs={"temperature": temperature},
+        llm = create_chat_llm(
+            model=model_name,
+            api_key=_require_api_key(),
+            temperature=temperature,
         )
         qa_prompt = _build_qa_prompt(prompt_preset)
         chain = load_qa_chain(llm, chain_type="stuff", prompt=qa_prompt)

@@ -17,7 +17,7 @@
 - **输入**：原始问题、向量库名称与 PDF 列表、同一向量库最近 3 轮问答历史。
 - **输出**（JSON）：`needs_rewrite`、`query_type`、`retrieval_query`、`sub_queries`（最多 3 条）、`confidence`、`reason`。
 - **类型**：`standalone` | `context_dependent` | `ambiguous` | `comparative` | `multi_intent` | `rhetorical`。
-- **默认**：开启；模型默认由环境变量 `LLM_REWRITE_MODEL` 控制（默认 `qwen-turbo`）；Prompt 见 `prompt/query_rewrite.yml`。
+- **默认**：开启；模型默认由环境变量 `LLM_REWRITE_MODEL` 控制（默认 `qwen3.7-flash-2026-07-15`）；Prompt 见 `prompt/query_rewrite.yml`。
 - **与参考案例差异**：面向已入库 PDF 检索，不做联网搜索判断；单次 LLM 调用完成分析与改写。
 
 ## 低置信度二次检索
@@ -34,7 +34,7 @@
 | 字段 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `query_rewrite` | bool | true | 是否 Query 改写 |
-| `rewrite_model` | string | qwen-turbo | 改写模型 |
+| `rewrite_model` | string | qwen3.7-flash-2026-07-15 | 改写模型 |
 | `secondary_retrieval` | bool | true | 低置信度二次检索 |
 
 问答历史记录可包含 `query_rewrite_meta` 字段，保存改写与二次检索详情。

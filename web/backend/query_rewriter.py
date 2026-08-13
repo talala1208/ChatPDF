@@ -10,11 +10,9 @@ import json
 import re
 from typing import List, Optional, TypedDict
 
-from langchain_community.llms import Tongyi
-
-from web.backend.llm_config import DEFAULT_QUERY_REWRITE_MODEL
+from web.backend.llm_config import DEFAULT_QUERY_REWRITE_MODEL, create_chat_llm
 from web.backend.prompt_config import load_query_rewrite_prompt
-from web.backend.token_usage import TokenUsage, token_usage_from_llm_result
+from web.backend.token_usage import TokenUsage, token_usage_from_chat_message
 
 _QUERY_REWRITE_PROMPT = load_query_rewrite_prompt()
 _MAX_HISTORY_CHARS = 2000
@@ -148,14 +146,10 @@ def rewrite_query_for_retrieval(
         question=query,
     )
 
-    llm = Tongyi(
-        model_name=model_name,
-        dashscope_api_key=api_key,
-        model_kwargs={"temperature": 0},
-    )
-    llm_result = llm.generate([prompt])
-    response_text = llm_result.generations[0][0].text
-    usage = token_usage_from_llm_result(llm_result)
+    llm = create_chat_llm(model=model_name, api_key=api_key, temperature=0)
+    message = llm.invoke(prompt)
+    response_text = str(message.content)
+    usage = token_usage_from_chat_message(message)
 
     return _parse_rewrite_response(response_text, query), usage
 

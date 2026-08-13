@@ -1,5 +1,5 @@
 """
-从 LangChain Tongyi / DashScope 响应中提取并汇总 token 用量。
+从 LangChain Chat / DashScope 响应中提取并汇总 token 用量。
 """
 
 from __future__ import annotations
@@ -36,6 +36,11 @@ def normalize_token_usage(raw: Any) -> Optional[TokenUsage]:
     }
 
 
+def token_usage_from_chat_message(message: Any) -> Optional[TokenUsage]:
+    """从 Chat 模型返回的 AIMessage 读取 token 用量。"""
+    return normalize_token_usage(getattr(message, "usage_metadata", None))
+
+
 def token_usage_from_llm_result(result: LLMResult) -> Optional[TokenUsage]:
     """从 LLMResult 读取单次调用的 token 用量。"""
     if not result or not result.generations:
@@ -45,13 +50,19 @@ def token_usage_from_llm_result(result: LLMResult) -> Optional[TokenUsage]:
         if not row:
             continue
         generation = row[0]
-        info = getattr(generation, "generation_info", None) or {}
-        if not isinstance(info, dict):
-            continue
-        usage = normalize_token_usage(info.get("token_usage"))
+        message = getattr(generation, "message", None)
+        usage = token_usage_from_chat_message(message)
         if usage:
             return usage
+        info = getattr(generation, "generation_info", None) or {}
+        if isinstance(info, dict):
+            usage = normalize_token_usage(info.get("token_usage"))
+            if usage:
+                return usage
 
+    llm_output = getattr(result, "llm_output", None) or {}
+    if isinstance(llm_output, dict):
+        return normalize_token_usage(llm_output.get("token_usage"))
     return None
 
 

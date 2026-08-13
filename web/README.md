@@ -6,7 +6,7 @@
 
 ## 项目是什么
 
-基于 **MinerU 解析 PDF → DashScope Embedding → FAISS 向量库 + BM25 混合检索 → 通义/DeepSeek LLM 问答** 的 ChatPDF 工作台。用户通过 Web UI 建库、追加 PDF、流式问答、查看切块调试文件。
+基于 **MinerU 解析 PDF → DashScope Embedding → FAISS 向量库 + BM25 混合检索 → DashScope LLM 问答** 的 ChatPDF 工作台。用户通过 Web UI 建库、追加 PDF、流式问答、查看切块调试文件。
 
 ## 目录结构
 
@@ -150,7 +150,7 @@ PDF 文件夹
 | `prompt_config.py` | 加载并校验 `prompt/*.yml`，向问答和重排模块提供模板 |
 | `chunk_debug.py` | 建库时按 PDF 写 `{pdf名}.md`，供 Debug 面板浏览 |
 
-默认 LLM：`deepseek-v3`；重排模型：`qwen-turbo`。
+默认 LLM：`qwen3.7-plus-2026-05-26`；改写 / 重排模型：`qwen3.7-flash-2026-07-15`。
 
 ## 编码约定（用户偏好）
 

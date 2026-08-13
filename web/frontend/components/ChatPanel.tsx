@@ -18,7 +18,13 @@ interface ChatPanelProps {
   onAsked: () => void;
 }
 
-const FALLBACK_MODELS = ["deepseek-v3", "qwen-turbo", "qwen-plus", "qwen-max"];
+const FALLBACK_MODELS = [
+  "qwen3.7-flash-2026-07-15",
+  "qwen3.7-max-2026-05-17",
+  "glm-5.2",
+  "qwen3.7-max-2026-05-20",
+  "qwen3.7-plus-2026-05-26",
+];
 const FALLBACK_PRESETS: { id: PromptPreset; label: string }[] = [
   { id: "default", label: "默认" },
   { id: "strict", label: "严格依据文档" },
@@ -44,12 +50,12 @@ function formatDuration(ms: number): string {
 export default function ChatPanel({ store, onAsked }: ChatPanelProps) {
   const [question, setQuestion] = useState("");
   const [topK, setTopK] = useState(4);
-  const [model, setModel] = useState("deepseek-v3");
+  const [model, setModel] = useState("qwen3.7-plus-2026-05-26");
   const [temperature, setTemperature] = useState(0.1);
   const [llmRerank, setLlmRerank] = useState(false);
-  const [rerankModel, setRerankModel] = useState("qwen-turbo");
+  const [rerankModel, setRerankModel] = useState("qwen3.7-flash-2026-07-15");
   const [queryRewrite, setQueryRewrite] = useState(true);
-  const [rewriteModel, setRewriteModel] = useState("qwen-turbo");
+  const [rewriteModel, setRewriteModel] = useState("qwen3.7-flash-2026-07-15");
   const [secondaryRetrieval, setSecondaryRetrieval] = useState(true);
   const [promptPreset, setPromptPreset] = useState<PromptPreset>("default");
   const [models, setModels] = useState<string[]>(FALLBACK_MODELS);

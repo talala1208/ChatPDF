@@ -8,11 +8,11 @@ import json
 import re
 from typing import List, Optional, Tuple
 
-from langchain_community.llms import Tongyi
 from langchain_core.documents import Document
 
+from web.backend.llm_config import create_chat_llm
 from web.backend.prompt_config import load_rerank_prompt
-from web.backend.token_usage import TokenUsage, token_usage_from_llm_result
+from web.backend.token_usage import TokenUsage, token_usage_from_chat_message
 
 # 单条 chunk 送入重排 Prompt 的最大字符数
 _MAX_RERANK_DOC_CHARS = 600
@@ -69,14 +69,10 @@ def llm_rerank_documents(
     )
     prompt = _RERANK_PROMPT.format(query=query.strip(), documents=documents_block)
 
-    llm = Tongyi(
-        model_name=model_name,
-        dashscope_api_key=api_key,
-        model_kwargs={"temperature": 0},
-    )
-    llm_result = llm.generate([prompt])
-    response_text = llm_result.generations[0][0].text
-    usage = token_usage_from_llm_result(llm_result)
+    llm = create_chat_llm(model=model_name, api_key=api_key, temperature=0)
+    message = llm.invoke(prompt)
+    response_text = str(message.content)
+    usage = token_usage_from_chat_message(message)
 
     try:
         llm_scores = _parse_rerank_scores(response_text, len(docs_with_scores))
