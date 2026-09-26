@@ -5,6 +5,11 @@
 # Python 编译缓存
 __pycache__/
 *.py[cod]
+.cursor/
+.deepeval/
+.pytest_cache/
+.venv/
+.vscode/
 
 web/.venv/
 web/.venv-mineru/
